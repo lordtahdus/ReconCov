@@ -160,3 +160,90 @@ simulate_bottom_var <- function(
     burnin = burnin
   )
 }
+
+
+
+
+#' Generate Block-Diagonal VAR(1) Coefficient Matrix
+#'
+#' Constructs a block-diagonal matrix for a VAR(1) process, with each block
+#' corresponding to a group of series. Blocks are either purely diagonal or
+#' contain random off-diagonal entries scaled to ensure stationarity.
+#'
+#' @param groups Integer vector specifying number of series in each group
+#'   (e.g., \code{groups = c(2, 3, 4)} for three blocks of sizes 2, 3, and 4).
+#' @param diag_range Numeric vector length 2 specifying range of diagonal entries.
+#'   Default is \code{c(0.2, 0.9)}.
+#' @param off_diag_range Numeric vector of length 2 specifying the range for
+#'   off-diagonal entries, or 0 for diagonal only. Default is \code{c(-0.1, 0.1)}.
+#' @param random_seed Optional integer for reproducibility.
+#' @return A list with:
+#' \describe{
+#'   \item{\code{A}}{Full block-diagonal VAR(1) matrix.}
+#'   \item{\code{blocks}}{List of individual block matrices.}
+#' }
+#'
+#' @export
+generate_var1_blocks <- function(
+    groups = c(2, 3, 4),
+    diag_range = c(0.2, 0.9),
+    off_diag_range = c(-0.1, 0.1),
+    random_seed = NULL
+) {
+  # Allows user to fix the random seed for reproducibility
+  if(!is.null(random_seed)) set.seed(random_seed)
+
+  k <- length(groups)
+  p <- sum(groups)   # total dimension
+
+  blocks <- vector("list", k)
+
+  # Loop over each group i
+  for(i in seq_len(k)) {
+    gsize <- groups[i]
+    diag_vals <- runif(gsize, min = diag_range[1], max = diag_range[2])
+
+    # If off_diag_range is 0 or NULL, skip off-diagonal generation
+    if (is.null(off_diag_range) || all(off_diag_range == 0)) {
+      offdiag_mat <- matrix(0, nrow = gsize, ncol = gsize)
+    } else {
+      offdiag_mat <- matrix(
+        runif(gsize*gsize, min=off_diag_range[1], max=off_diag_range[2]),
+        nrow = gsize
+      )
+      diag(offdiag_mat) <- 0  # zero out diagonal
+    }
+
+    block <- diag(diag_vals) + offdiag_mat
+
+    # Ensure stability by decreasing the scale until spectral radius < 1 or attempts done
+    sr <- max(abs(eigen(block)$values))
+    # Warning
+    if (sr >= 0.99) {
+      cat("Simulated block matrix is unstable (not stationary).",
+          "Attempt to reduce weights of off-diagonal elements.")
+    }
+    while(sr >= 0.99) {
+      # reduce the off diag portion
+      offdiag_mat <- 0.95 * offdiag_mat
+      block <- diag(diag_vals) + offdiag_mat
+      sr <- max(abs(eigen(block)$values))
+    }
+    blocks[[i]] <- block
+  }
+
+  # Combine blocks into single block diagonal A
+  A <- matrix(0, nrow=p, ncol=p)
+  idx1 <- 1
+  for(i in seq_len(k)) {
+    gsize <- groups[i]
+    idx2 <- idx1 + gsize - 1
+    A[idx1:idx2, idx1:idx2] <- blocks[[i]]
+    idx1 <- idx2 + 1
+  }
+
+  return(list(
+    A = A,             # full p x p matrix
+    blocks = blocks    # list of each block
+  ))
+}

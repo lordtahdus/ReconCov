@@ -35,3 +35,10 @@ for(i in seq_len(k)) {
   A[idx1:idx2, idx1:idx2] <- Ablocks[[i]]
   idx1 <- idx2 + 1
 }
+
+
+
+
+
+# Example usage
+A <- generate_var1_blocks(groups = c(2, 3), method = "random-stable")
