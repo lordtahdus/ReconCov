@@ -1,0 +1,239 @@
+---
+title: "R Notebook"
+# output: html_notebook
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r}
+library(tidyverse)
+library(fpp3)
+# library(fabletools)
+# library(fable)
+# library(feasts)
+```
+
+```{r}
+tourism_full <- tourism |>
+  # aggregate_key((State/Region) * Purpose, Trips = sum(Trips))
+  aggregate_key(State, Trips = sum(Trips))
+
+fit <- tourism_full |>
+  filter(year(Quarter) <= 2015) |>
+  model(base = ETS(Trips)) |>
+  reconcile(
+    # bu = bottom_up(base),
+    # ols = min_trace(base, method = "ols"),
+    mint = min_trace(base, method = "mint_shrink")
+  )
+```
+
+```{r}
+fc <- fit |> forecast(h = "2 years")
+
+# fc |>
+#   # filter(is_aggregated(Region), is_aggregated(Purpose)) |>
+#   autoplot(
+#     tourism_full |> filter(year(Quarter) >= 2011),
+#     level = NULL
+#   ) +
+#   labs(y = "Trips ('000)") +
+#   facet_wrap(vars(State), scales = "free_y")
+```
+
+
+*Structure of the series*
+
+```{r}
+# Only 'aggregate' and 'States'
+S <- matrix(0, nrow = 9, ncol = 8)
+rownames(S) <- fc %>% pull(State) %>% unique() %>% as.character()
+S[1:8,] <- diag(rep(1,8))
+S[9,] <- 1
+```
+
+
+*Get h-step-ahead Base & MinT forecasts*
+
+```{r}
+base_fc <- fc %>% 
+  filter(.model == "base") %>% 
+  as_tibble() %>% 
+  select(State, .mean, Quarter) %>%
+  pivot_wider(names_from = State, values_from = .mean) %>%
+  select(-Quarter) %>% 
+  as.matrix()
+
+reconciled_mint_shr <- fc %>% 
+  filter(.model == "mint") %>% 
+  as_tibble() %>% 
+  select(State, .mean, Quarter) %>%
+  pivot_wider(names_from = State, values_from = .mean) %>%
+  select(-Quarter) %>% 
+  as.matrix()
+
+quarter_names <- fc$Quarter %>% 
+  unique() %>% 
+  as.character()
+
+rownames(base_fc) <- quarter_names
+rownames(reconciled_mint_shr) <- quarter_names
+
+```
+
+```{r}
+actual_values <- tourism_full %>% 
+  filter(year(Quarter) >= 2016) %>% 
+  as_tibble() %>% 
+  select(State, Trips, Quarter) %>%
+  arrange(State) %>%
+  pivot_wider(names_from = State, values_from = Trips) %>%
+  select(-Quarter) %>%
+  as.matrix()
+```
+
+
+*Get in-sample actual & fitted values*
+
+```{r}
+y_hat <- fit %>% 
+  augment() %>% 
+  filter(.model == "base") %>%
+  select(.fitted, State) %>% 
+  pivot_wider(names_from = State, values_from = .fitted) 
+
+y_hat <- y_hat %>% 
+  as_tibble() %>% 
+  select(-Quarter) %>% 
+  as.matrix()
+
+y <- fit %>% 
+  augment() %>% 
+  filter(.model == "base") %>%
+  select(Trips, State) %>% 
+  pivot_wider(names_from = State, values_from = Trips) 
+
+y <- y %>% 
+  as_tibble() %>% 
+  select(-Quarter) %>% 
+  as.matrix()
+```
+
+
+
+## Sanity check: Reconcile function
+
+*MinT Shrink*
+
+```{r Check my MinT shrink vs. fabletool's}
+W_shr <- shrinkage_est(
+  y - y_hat,
+  zero_mean = TRUE
+)$cov.shr
+
+# quick check the series
+all(colnames(base_fc) == rownames(S))
+
+my_reconciled_mint_shr <- reconcile_mint(base_fc, S, W_shr)
+
+my_reconciled_mint_shr - reconciled_mint_shr
+```
+
+```{r}
+# my RMSE 
+sqrt(colMeans((actual_values - my_reconciled_mint_shr)^2)) %>% mean()
+
+# package RMSE
+fc |>
+  accuracy(
+      data = tourism_full,
+      measures = list(rmse = RMSE, mase = MASE)
+  ) |>
+  group_by(.model) |>
+  summarise(rmse = mean(rmse), mase = mean(mase))
+```
+
+
+## Sanity Check: NOVELIST Cross Validation
+
+```{r Check: only given 1 delta}
+# Check with novelist
+all(
+  novelist_est(
+    y - y_hat,
+    delta = 0.4
+  )$cov.novelist == 
+  novelist_cv(
+    y = y,
+    base_forecasts = y_hat,
+    S,
+    window_size = 60,
+    deltas = 0.4
+  )$cov.novelist
+)
+
+# Check with shrinkage
+shrinkage_est(
+  y - y_hat
+)$cov.shr - novelist_cv(
+  y = y,
+  base_forecasts = y_hat,
+  S,
+  window_size = 60,
+  deltas = 1
+)$cov.novelist
+```
+
+```{r}
+deltas = 1
+deltas <- seq(0, 1, by = 0.1)
+deltas <- seq(0, 1, by = 0.05)
+
+window_size <- 3
+
+results <- novelist_cv(
+  y = y,
+  base_forecasts = y_hat,
+  S,
+  window_size = window_size,
+  deltas = deltas,
+  zero_mean = TRUE,
+)
+
+
+plot(deltas, results$errors_by_delta,
+  type = "l"
+  # ylim = c(results$errors_by_delta %>% min(),results$errors_by_delta %>% mean())
+)
+points(results$delta, results$errors_by_delta %>% min(), col = "red")
+
+results$delta
+
+results$errors_by_delta
+
+W_novel <- results$cov.novelist
+my_reconciled_mint_novel <- reconcile_mint(base_fc, S, W_novel)
+
+# RMSE of my MinT NOVELIST an Shrinkage
+sqrt(colMeans((actual_values - my_reconciled_mint_novel)^2)) %>% mean() -
+sqrt(colMeans((actual_values - my_reconciled_mint_shr)^2)) %>% mean()
+```
+
+```{r}
+novelist_est(
+  (y-y_hat)[1:3,],
+  delta = 0.5,
+  
+)
+cor((y-y_hat))
+shrinkage_est(
+  (y-y_hat)
+)$cov.shr - novelist_est(
+  (y-y_hat),
+  delta = 0.8
+)$cov.novelist
+```
+
+
+
+
