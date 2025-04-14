@@ -2,85 +2,44 @@
 simulate_bottom_var <- function(
     groups = c(2, 3),      # Vector: size of each group. E.g. c(2, 3) => total 5 series, group1=2, group2=3
     T = 100,               # Number of output time steps
-    burnin = 50,           # Burn-in steps (discarded)
-
-    # VAR(1) Coefficients:
-    #  - either user-supplied list of length length(groups),
-    #    each an (g_i x g_i) matrix,
-    #  - or we generate random stable blocks
     Ablocks = NULL,
-
-    # Innovation covariance:
-    #  - either user-supplied list of covariance matrices (length(groups)),
-    #  - or let the function create them
     Sigblocks = NULL,
-
-    # If we need to generate a block covariance, we specify how:
     corType = c("nonnegative", "mixed"),  # do we allow negative correlation or not
     corRange = c(0.2, 0.7),              # uniform range of correlation magnitudes
     stdevRange = c(sqrt(2), sqrt(6)),    # standard deviations for each series in the group
     # For compound-symmetric approach, each block has all off-diag = correlation,
     # user can choose "mixed" to flip some signs randomly
 
+    diag_range_A = c(0.4, 0.9),
+    offdiag_range_A = c(-0.1, 0.1),
+
+    burnin = 50,           # Burn-in steps (discarded)
     random_seed = NULL
 ) {
   if(!is.null(random_seed)) set.seed(random_seed)
 
   corType <- match.arg(corType)
 
-  # ----- 1) Basic Dimensions -----
   k <- length(groups)               # number of groups
   p <- sum(groups)                  # total dimension
-  # We'll build a block diagonal VAR(1) matrix A of size p x p:
 
-  # ----- 2) Create or Check Ablocks -----
+  # ----- Block matrix of VAR(1) coefficients -----
+  # If no A matrix generate, call generate_var1_blocks() function
   if(is.null(Ablocks)) {
-    # Generate stable block submatrices for each group
-    Ablocks <- vector("list", k)
-    for(i in seq_along(groups)) {
-      gsize <- groups[i]
-      # Example: we create an AR coefficient matrix with some random angles/eigenvalues
-      # We'll ensure it's stable by bounding spectral radius < 1
-      # A simple approach: diagonal of phi's in [0.4, 0.9], off-diag small
-      diag_vals <- runif(gsize, min=0.4, max=0.9)
-      # off diagonal smaller
-      offMat <- matrix(runif(gsize*gsize, min=-0.1, max=0.1), nrow=gsize)
-      # Ensure it is stable:
-      # We'll do a simple trick: place diag_vals on diagonal, scale the off-diag
-      # so that spectral radius is <1
-      Ab <- diag(diag_vals) + 0.5 * offMat
-      # optional refinement: reduce until stable
-      # Not guaranteed stable, so let's do a small loop:
-      sr <- max(abs(eigen(Ab)$values))
-      while(sr >= 0.99) {
-        offMat <- offMat * 0.9
-        Ab <- diag(diag_vals) + 0.5 * offMat
-        sr <- max(abs(eigen(Ab)$values))
-      }
-      Ablocks[[i]] <- Ab
-    }
+    A <- generate_var1_blocks(
+      groups = groups,
+      diag_range = diag_range_A,
+      offdiag_range = offdiag_range_A,
+      random_seed = random_seed
+    )$A
   } else {
-    # user-supplied, must check dimension
+    # user-supplied
     if(length(Ablocks) != k) {
-      stop("Ablocks must be a list of length(groups). Each entry is a g_i x g_i matrix.")
+      stop("Ablocks must be a list of length(groups). Each entry is g_i x g_i.")
     }
-    for(i in seq_along(groups)) {
-      if(!all(dim(Ablocks[[i]]) == groups[i])) {
-        stop("One of the supplied Ablocks has wrong dimension.")
-      }
-      # user presumably ensures stability
-    }
+    A <- combine_blocks(Ablocks)
   }
 
-  # Combine Ablocks into block diagonal A
-  A <- matrix(0, nrow=p, ncol=p)
-  idx1 <- 1
-  for(i in seq_len(k)) {
-    gsize <- groups[i]
-    idx2 <- idx1 + gsize - 1
-    A[idx1:idx2, idx1:idx2] <- Ablocks[[i]]
-    idx1 <- idx2 + 1
-  }
 
   # ----- 3) Create or Check Sigblocks (Innovation Covariances) -----
   if(is.null(Sigblocks)) {
@@ -174,7 +133,7 @@ simulate_bottom_var <- function(
 #'   (e.g., \code{groups = c(2, 3, 4)} for three blocks of sizes 2, 3, and 4).
 #' @param diag_range Numeric vector length 2 specifying range of diagonal entries.
 #'   Default is \code{c(0.2, 0.9)}.
-#' @param off_diag_range Numeric vector of length 2 specifying the range for
+#' @param offdiag_range Numeric vector of length 2 specifying the range for
 #'   off-diagonal entries, or 0 for diagonal only. Default is \code{c(-0.1, 0.1)}.
 #' @param random_seed Optional integer for reproducibility.
 #' @return A list with:
@@ -187,7 +146,7 @@ simulate_bottom_var <- function(
 generate_var1_blocks <- function(
     groups = c(2, 3, 4),
     diag_range = c(0.2, 0.9),
-    off_diag_range = c(-0.1, 0.1),
+    offdiag_range = c(-0.1, 0.1),
     random_seed = NULL
 ) {
   # Allows user to fix the random seed for reproducibility
@@ -203,12 +162,12 @@ generate_var1_blocks <- function(
     gsize <- groups[i]
     diag_vals <- runif(gsize, min = diag_range[1], max = diag_range[2])
 
-    # If off_diag_range is 0 or NULL, skip off-diagonal generation
-    if (is.null(off_diag_range) || all(off_diag_range == 0)) {
+    # If offdiag_range is 0 or NULL, skip off-diagonal generation
+    if (is.null(offdiag_range) || all(offdiag_range == 0)) {
       offdiag_mat <- matrix(0, nrow = gsize, ncol = gsize)
     } else {
       offdiag_mat <- matrix(
-        runif(gsize*gsize, min=off_diag_range[1], max=off_diag_range[2]),
+        runif(gsize*gsize, min=offdiag_range[1], max=offdiag_range[2]),
         nrow = gsize
       )
       diag(offdiag_mat) <- 0  # zero out diagonal
@@ -233,17 +192,30 @@ generate_var1_blocks <- function(
   }
 
   # Combine blocks into single block diagonal A
-  A <- matrix(0, nrow=p, ncol=p)
-  idx1 <- 1
-  for(i in seq_len(k)) {
-    gsize <- groups[i]
-    idx2 <- idx1 + gsize - 1
-    A[idx1:idx2, idx1:idx2] <- blocks[[i]]
-    idx1 <- idx2 + 1
-  }
+  A <- combine_blocks(blocks)
 
   return(list(
     A = A,             # full p x p matrix
     blocks = blocks    # list of each block
   ))
 }
+
+
+#' Helper function
+#' Combine blocks into single block diagonal A
+combine_blocks <- function(blocks) {
+  k <- length(blocks)
+  p <- sum(sapply(blocks, nrow))   # total dimension
+
+  A <- matrix(0, nrow=p, ncol=p)
+  idx1 <- 1
+  for(i in seq_len(k)) {
+    gsize <- nrow(blocks[[i]])
+    idx2 <- idx1 + gsize - 1
+    A[idx1:idx2, idx1:idx2] <- blocks[[i]]
+    idx1 <- idx2 + 1
+  }
+  return(A)
+}
+
+
