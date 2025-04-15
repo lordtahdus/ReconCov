@@ -42,51 +42,34 @@ simulate_bottom_var <- function(
     A <- combine_blocks(Ablocks)
   }
 
+  # ----- Noise Covariance Matrix -----
+  # If no Sig, call generate_cor() function
+  if (is.null(Sig)) {
+    Sigcor <- generate_cor(
+      groups = groups,
+      rho = runif(k, min = cor_range[1], max = cor_range[2]),
+      delta = min(cor_range) * 0.9,
+      epsilon = 0.99 - max(cor_range),
+      eidim = 2
+    )
+    # Convert correlation to covariance
+    Sig <- convert_cor_to_cov(
+      cor = Sigcor,
+      stdevs = runif(p, min = stdev_range[1], max = stdev_range[2])
+    )
 
-  # ----- 3) Create or Check Sigblocks (Innovation Covariances) -----
-  if(is.null(Sigblocks)) {
-    Sigblocks <- vector("list", k)
-    for(i in seq_along(groups)) {
-      gsize <- groups[i]
-      # build a compound-symmetric matrix
-      # first pick random correlation in corRange
-      r <- runif(1, min=corRange[1], max=corRange[2])
-      # might flip sign if corType=="mixed"
-      if(corType=="mixed") {
-        signflip <- sample(c(-1,1), size=1)
-        r <- signflip * r
-      }
-      # pick stdevs from stdevRange
-      sds <- runif(gsize, min=stdevRange[1], max=stdevRange[2])
-      # build covariance
-      # compound symmetric => Cov(i,i)=sds[i]^2, Cov(i,j)= r*sds[i]*sds[j]
-      Sblock <- diag(sds^2)
-      for(ii in 1:(gsize-1)) {
-        for(jj in (ii+1):gsize) {
-          val <- r * sds[ii]*sds[jj]
-          Sblock[ii,jj] <- val
-          Sblock[jj,ii] <- val
-        }
-      }
-      Sigblocks[[i]] <- Sblock
+    if (corType == "mixed") {
+      # convert to mixed sign matrix
+      Sig <- convert_posmat_to_mixed(Sig)
     }
+
   } else {
     # user-supplied
-    if(length(Sigblocks) != k) {
-      stop("Sigblocks must be a list of length(groups). Each entry is g_i x g_i.")
+    if(ncol(Sig) != p || nrow(Sig) != p) {
+      stop("Error cov martix must have dimension of p x p.")
     }
-    # no further checks beyond dimension
   }
 
-  # Combine Sigblocks into block diagonal Sig
-  Sig <- matrix(0, nrow=p, ncol=p)
-  idx1 <- 1
-  for(i in seq_len(k)) {
-    gsize <- groups[i]
-    idx2 <- idx1 + gsize - 1
-    Sig[idx1:idx2, idx1:idx2] <- Sigblocks[[i]]
-    idx1 <- idx2 + 1
-  }
 
   # ----- Simulate data from the VAR(1) Process -----
   # We do a direct simulation: y_t = A y_{t-1} + eps_t, eps_t ~ N(0, Sig)
