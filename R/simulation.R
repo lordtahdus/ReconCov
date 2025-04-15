@@ -121,6 +121,39 @@ simulate_bottom_var <- function(
 }
 
 
+generate_cor <- function (
+    groups = c(2, 3, 4),
+    rho = runif(length(groups), 0.2, 0.7),
+    delta = min(rho) * 0.8,
+    epsilon = (1 - max(rho)) * 0.8,
+    eidim = 2
+) {
+  k <- length(groups)               # number of groups
+  p <- sum(groups)                  # total dimension
+
+  bigcor <- matrix(rep(delta, p * p), ncol = p)
+  for (i in 1:k) {
+    cor <- matrix(rep(rho[i], groups[i] * groups[i]), ncol = groups[i])
+    if (i == 1) {bigcor[1:groups[1], 1:groups[1]] <- cor}
+    if (i != 1) {
+      bigcor[
+        (sum(groups[1:(i - 1)]) + 1):sum(groups[1:i]),
+        (sum(groups[1:(i - 1)]) + 1):sum(groups[1:i])
+      ] <- cor
+    }
+  }
+  diag(bigcor) <- 1 - epsilon
+
+  eivect <- c()
+  for (i in 1:p) {
+    ei <- runif(eidim, -1, 1)
+    eivect <- cbind(eivect, sqrt(epsilon) * ei/sqrt(sum(ei^2)))
+  }
+  bigE <- t(eivect) %*% eivect
+  finalcor <- bigcor + bigE
+  return(finalcor)
+}
+
 
 
 #' Generate Block-Diagonal VAR(1) Coefficient Matrix
