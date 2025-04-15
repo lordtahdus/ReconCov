@@ -167,6 +167,29 @@ convert_cor_to_cov <- function(
 }
 
 
+#' Convert totally positive matrix to mixed sign matrix
+convert_posmat_to_mixed <- function(mat, flip.prob = 0.5) {
+  # Check that mat is a square matrix
+  if(nrow(mat) != ncol(mat)) {
+    stop("Input matrix must be square.")
+  }
+  n <- nrow(mat)
+  mat_new <- mat
+  # Indices for upper & lower triangle (excluding diagonal)
+  upper_idx <- which(upper.tri(mat_new))
+  lower_idx <- which(lower.tri(mat_new))
+
+  # Generate random multipliers (-1 with probability flip.prob, otherwise +1)
+  flip_factors <- ifelse(runif(length(upper_idx)) < flip.prob, -1, 1)
+
+  mat_new[upper_idx] <- mat_new[upper_idx] * flip_factors
+  mat_new[lower_idx] <- t(mat_new)[lower_idx]
+
+  return(mat_new)
+}
+
+
+
 #' Generate Block-Diagonal VAR(1) Coefficient Matrix
 #'
 #' Constructs a block-diagonal matrix for a VAR(1) process, with each block
