@@ -24,9 +24,9 @@ simulate_bottom_var <- function(
   p <- sum(groups)                  # total dimension
 
   # ----- Block matrix of VAR(1) coefficients -----
-  # If no A matrix generate, call generate_var1_blocks() function
+  # If no A, call generate_block_diag() function
   if(is.null(Ablocks)) {
-    A <- generate_var1_blocks(
+    A <- generate_block_diag(
       groups = groups,
       diag_range = diag_range_A,
       offdiag_range = offdiag_range_A,
@@ -143,7 +143,7 @@ simulate_bottom_var <- function(
 #' }
 #'
 #' @export
-generate_var1_blocks <- function(
+generate_block_diag <- function(
     groups = c(2, 3, 4),
     diag_range = c(0.2, 0.9),
     offdiag_range = c(-0.1, 0.1),
@@ -172,8 +172,8 @@ generate_var1_blocks <- function(
       )
       diag(offdiag_mat) <- 0  # zero out diagonal
     }
-
-    block <- diag(diag_vals) + offdiag_mat
+    # Combine diag & offdiag
+    block <- diag(diag_vals, nrow = gsize) + offdiag_mat
 
     # Ensure stability by decreasing the scale until spectral radius < 1 or attempts done
     sr <- max(abs(eigen(block)$values))
@@ -190,7 +190,6 @@ generate_var1_blocks <- function(
     }
     blocks[[i]] <- block
   }
-
   # Combine blocks into single block diagonal A
   A <- combine_blocks(blocks)
 
@@ -202,6 +201,7 @@ generate_var1_blocks <- function(
 
 
 #' Helper function
+#'
 #' Combine blocks into single block diagonal A
 combine_blocks <- function(blocks) {
   k <- length(blocks)
