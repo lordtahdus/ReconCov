@@ -152,7 +152,7 @@ convert_cor_to_cov <- function(
 
 
 #' Convert totally positive matrix to mixed sign matrix
-convert_posmat_to_mixed <- function(mat, flip.prob = 0.5) {
+convert_posmat_to_mixed <- function(mat, flip_prob = 0.5, ensure_PD = TRUE) {
   # Check that mat is a square matrix
   if(nrow(mat) != ncol(mat)) {
     stop("Input matrix must be square.")
@@ -163,11 +163,22 @@ convert_posmat_to_mixed <- function(mat, flip.prob = 0.5) {
   upper_idx <- which(upper.tri(mat_new))
   lower_idx <- which(lower.tri(mat_new))
 
-  # Generate random multipliers (-1 with probability flip.prob, otherwise +1)
-  flip_factors <- ifelse(runif(length(upper_idx)) < flip.prob, -1, 1)
+  # Generate random multipliers (-1 with probability flip_prob, otherwise +1)
+  flip_factors <- ifelse(runif(length(upper_idx)) < flip_prob, -1, 1)
 
   mat_new[upper_idx] <- mat_new[upper_idx] * flip_factors
   mat_new[lower_idx] <- t(mat_new)[lower_idx]
+
+  # Check PD
+  if (any(eigen(mat_new)$values <= 1e-8)) {
+    cat("Flipped matrix is not positive definite.\n")
+    # Ensure PD?
+    if (ensure_PD) {
+      iscorr <- all(abs(diag(mat_new) - 1) < 1e-8)
+      mat_new <- nearPD(mat_new, corr = iscorr)$mat
+      cat("Converted to PD matrix using nearPD() algorithm of Higham (2002).\n")
+    }
+  }
 
   return(mat_new)
 }
