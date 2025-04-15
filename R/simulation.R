@@ -1,77 +1,76 @@
-
+#' Simulate Bottom-Level Series from a Block-Diagonal VAR(1) Model
+#'
+#' This function simulates a set of bottom-level time series for a hierarchical
+#' structure. The series follow a VAR(1) process with block-diagonal coefficients
+#' and a specified covariance structure for innovations.
+#'
+#' @param groups Integer vector specifying the sizes of each bottom-level group, e.g.
+#'   \code{c(2,3,4)} means three blocks (2D, 3D, 4D) for a total of \eqn{\sum groups} series.
+#' @param T Integer, the number of time steps of final output (excluding burn-in).
+#' @param A \eqn{p \times p} matrix of VAR(1) coefficients. If \code{NULL} (default),
+#'   a block-diagonal matrix is generated via \code{\link{generate_block_diag}}.
+#' @param Sig \eqn{p \times p} covariance matrix of innovations. If \code{NULL}
+#'   (default), the function generates a correlation matrix with \code{\link{generate_cor}} and
+#'   converts it to covariance. If \code{corType} is "mixed", signs can be flipped.
+#' @param burnin Integer, how many initial steps to discard as burn-in (defaults to 50).
+#' @param random_seed Optional integer seed for reproducibility. If not \code{NULL}, the
+#'   random number generator is set once at the beginning of the function.
+#'
+#' @return A list with:
+#'   \describe{
+#'     \item{\code{Y}}{A \code{T x p} matrix of simulated bottom-level time series.}
+#'     \item{\code{A}}{The final \eqn{p x p} VAR(1) coefficient matrix.}
+#'     \item{\code{Sig}}{The final \eqn{p x p} innovation covariance matrix.}
+#'     \item{\code{groups}}{The same integer vector specifying group sizes.}
+#'   }
+#'
+#' @export
 simulate_bottom_var <- function(
-    groups = c(2, 3, 4),   # Vector: size of each group. E.g. c(2, 3) => total 5 series, group1=2, group2=3
-    T = 100,               # Number of output time steps
+    groups = c(2, 3, 4),
+    T = 100,
     A = NULL,
     Sig = NULL,
-
-    diag_range_A = c(0.4, 0.9),
-    offdiag_range_A = c(-0.1, 0.1),
-
-    corType = c("nonnegative", "mixed"),  # do we allow negative correlation or not
-    cor_range = c(0.2, 0.7),              # uniform range of correlation magnitudes
-    stdev_range = c(sqrt(2), sqrt(6)),    # standard deviations for each series in the group
-    burnin = 50,           # Burn-in steps (discarded)
+    burnin = 50,
     random_seed = NULL
 ) {
   if(!is.null(random_seed)) set.seed(random_seed)
 
-  corType <- match.arg(corType)
-
   k <- length(groups)               # number of groups
   p <- sum(groups)                  # total dimension
 
-  # ----- Block matrix of VAR(1) coefficients -----
-  # If no A, call generate_block_diag() function
+  # Block matrix of VAR(1) coefficients
   if(is.null(A)) {
     A <- generate_block_diag(
-      groups = groups,
-      diag_range = diag_range_A,
-      offdiag_range = offdiag_range_A,
-      random_seed = random_seed
+      groups = groups
     )$A
   } else {
     # user-supplied
     if(ncol(A) != p || nrow(A) != p) {
-      stop("Matrix A must have dimension of p x p.")
+      stop("'A' must be a p x p matrix, where p = sum(groups).")
     }
   }
 
-  # ----- Noise Covariance Matrix -----
-  # If no Sig, call generate_cor() function
+  # Noise Covariance Matrix
   if (is.null(Sig)) {
     Sigcor <- generate_cor(
-      groups = groups,
-      rho = runif(k, min = cor_range[1], max = cor_range[2]),
-      delta = min(cor_range) * 0.9,
-      epsilon = 0.99 - max(cor_range),
-      eidim = 2
+      groups = groups
     )
     # Convert correlation to covariance
     Sig <- convert_cor2cov(
-      cor = Sigcor,
-      stdevs = runif(p, min = stdev_range[1], max = stdev_range[2])
+      cor = Sigcor
     )
-
-    if (corType == "mixed") {
-      # convert to mixed sign matrix
-      Sig <- flip_signs_mat(Sig, ensure_PD = TRUE)
-    }
-
   } else {
     # user-supplied
     if(ncol(Sig) != p || nrow(Sig) != p) {
-      stop("Error cov martix must have dimension of p x p.")
+      stop("'Sig' must be a p x p matrix, matching sum(groups).")
     }
   }
 
-  # ----- Simulate data from the VAR(1) Process -----
-  # y_t = A y_{t-1} + eps_t, eps_t ~ N(0, Sig)
-
+  # Simulate data from the VAR(1) Process
   Yfull <- matrix(0, nrow = T + burnin, ncol = p)
-  # Random initialise
-  Yfull[1,] <- MASS::mvrnorm(1, mu=rep(0,p), Sigma=Sig)
+  Yfull[1,] <- MASS::mvrnorm(1, mu=rep(0,p), Sigma=Sig) #random initialise
 
+  # y_t = A y_{t-1} + eps_t, eps_t ~ N(0, Sig)
   for(t in 2:(T+burnin)) {
     eps_t <- MASS::mvrnorm(1, mu=rep(0,p), Sigma=Sig)
     Yfull[t,] <- A %*% Yfull[t-1,] + eps_t
@@ -111,6 +110,14 @@ generate_cor <- function (
 
   k <- length(groups)               # number of groups
   p <- sum(groups)                  # total dimension
+
+  # Constraints on delta and epsilon
+  if (delta < 0 || delta >= min(rho)) {
+    stop("Delta must be between 0 and minimum of rho parameters.")
+  }
+  if (epsilon < 0 || epsilon >= (1 - max(rho))) {
+    stop("Epsilon must be between 0 and (1 - maximum of rho parameters).")
+  }
 
   bigcor <- matrix(rep(delta, p * p), ncol = p)
   for (i in 1:k) {
@@ -192,8 +199,8 @@ generate_block_diag <- function(
     sr <- max(abs(eigen(block)$values))
     # Warning
     if (sr >= 0.99) {
-      cat("Simulated block matrix is unstable (not stationary).",
-          "Attempt to rescale of off-diagonal elements.")
+      message("Simulated block matrix is unstable (not stationary).",
+              "Attempt to rescale of off-diagonal elements.")
     }
     while(sr >= 0.99) {
       # reduce the off diag portion
@@ -247,13 +254,13 @@ flip_signs_mat <- function(mat, flip_prob = 0.5, ensure_PD = TRUE) {
   mat_new[lower_idx] <- t(mat_new)[lower_idx]
 
   # Check PD
-  if (any(eigen(mat_new)$values <= 1e-8)) {
-    cat("Flipped matrix is not positive definite.\n")
+  if (any(eigen(mat_new)$values <= 1e-10)) {
+    warning("Flipped matrix is not positive definite.\n")
     # Ensure PD?
     if (ensure_PD) {
-      iscorr <- all(abs(diag(mat_new) - 1) < 1e-8)
+      iscorr <- all(abs(diag(mat_new) - 1) < 1e-10)
       mat_new <- Matrix::nearPD(mat_new, corr = iscorr)$mat
-      cat("Converted to PD matrix using nearPD() algorithm of Higham (2002).\n")
+      message("Converted to PD matrix using nearPD() algorithm of Higham (2002).\n")
     }
   }
 
