@@ -155,6 +155,17 @@ generate_cor <- function (
 }
 
 
+#' Convert correlation to covariance matrix
+#'
+convert_cor_to_cov <- function(
+    cor,
+    stdevs = runif(nrow(cor), sqrt(2), sqrt(6))
+) {
+  p <- nrow(cor)
+  cov <- diag(stdevs) %*% cor %*% diag(stdevs)
+  return(cov)
+}
+
 
 #' Generate Block-Diagonal VAR(1) Coefficient Matrix
 #'
