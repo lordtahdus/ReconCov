@@ -2,7 +2,7 @@
 simulate_bottom_var <- function(
     groups = c(2, 3, 4),   # Vector: size of each group. E.g. c(2, 3) => total 5 series, group1=2, group2=3
     T = 100,               # Number of output time steps
-    Ablocks = NULL,
+    A = NULL,
     Sig = NULL,
 
     diag_range_A = c(0.4, 0.9),
@@ -27,7 +27,7 @@ simulate_bottom_var <- function(
 
   # ----- Block matrix of VAR(1) coefficients -----
   # If no A, call generate_block_diag() function
-  if(is.null(Ablocks)) {
+  if(is.null(A)) {
     A <- generate_block_diag(
       groups = groups,
       diag_range = diag_range_A,
@@ -36,10 +36,9 @@ simulate_bottom_var <- function(
     )$A
   } else {
     # user-supplied
-    if(length(Ablocks) != k) {
-      stop("Ablocks must be a list of length(groups). Each entry is g_i x g_i.")
+    if(ncol(A) != p || nrow(A) != p) {
+      stop("Matrix A must have dimension of p x p.")
     }
-    A <- combine_blocks(Ablocks)
   }
 
   # ----- Noise Covariance Matrix -----
