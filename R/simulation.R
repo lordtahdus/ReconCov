@@ -1,17 +1,19 @@
 
 simulate_bottom_var <- function(
-    groups = c(2, 3),      # Vector: size of each group. E.g. c(2, 3) => total 5 series, group1=2, group2=3
+    groups = c(2, 3, 4),   # Vector: size of each group. E.g. c(2, 3) => total 5 series, group1=2, group2=3
     T = 100,               # Number of output time steps
     Ablocks = NULL,
-    Sigblocks = NULL,
-    corType = c("nonnegative", "mixed"),  # do we allow negative correlation or not
-    corRange = c(0.2, 0.7),              # uniform range of correlation magnitudes
-    stdevRange = c(sqrt(2), sqrt(6)),    # standard deviations for each series in the group
-    # For compound-symmetric approach, each block has all off-diag = correlation,
-    # user can choose "mixed" to flip some signs randomly
+    Sig = NULL,
 
     diag_range_A = c(0.4, 0.9),
     offdiag_range_A = c(-0.1, 0.1),
+
+    corType = c("nonnegative", "mixed"),  # do we allow negative correlation or not
+    cor_range = c(0.2, 0.7),              # uniform range of correlation magnitudes
+    stdev_range = c(sqrt(2), sqrt(6)),    # standard deviations for each series in the group
+    # For compound-symmetric approach, each block has all off-diag = correlation,
+    # user can choose "mixed" to flip some signs randomly
+
 
     burnin = 50,           # Burn-in steps (discarded)
     random_seed = NULL
@@ -86,7 +88,7 @@ simulate_bottom_var <- function(
     idx1 <- idx2 + 1
   }
 
-  # ----- 4) Simulate data from the VAR(1) Process -----
+  # ----- Simulate data from the VAR(1) Process -----
   # We do a direct simulation: y_t = A y_{t-1} + eps_t, eps_t ~ N(0, Sig)
 
   # We'll store entire time series from t=1..(T+burnin)
@@ -247,7 +249,7 @@ generate_block_diag <- function(
     # Warning
     if (sr >= 0.99) {
       cat("Simulated block matrix is unstable (not stationary).",
-          "Attempt to reduce weights of off-diagonal elements.")
+          "Attempt to rescale of off-diagonal elements.")
     }
     while(sr >= 0.99) {
       # reduce the off diag portion
