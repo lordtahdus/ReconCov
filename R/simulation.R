@@ -11,10 +11,6 @@ simulate_bottom_var <- function(
     corType = c("nonnegative", "mixed"),  # do we allow negative correlation or not
     cor_range = c(0.2, 0.7),              # uniform range of correlation magnitudes
     stdev_range = c(sqrt(2), sqrt(6)),    # standard deviations for each series in the group
-    # For compound-symmetric approach, each block has all off-diag = correlation,
-    # user can choose "mixed" to flip some signs randomly
-
-
     burnin = 50,           # Burn-in steps (discarded)
     random_seed = NULL
 ) {
@@ -52,14 +48,14 @@ simulate_bottom_var <- function(
       eidim = 2
     )
     # Convert correlation to covariance
-    Sig <- convert_cor_to_cov(
+    Sig <- convert_cor2cov(
       cor = Sigcor,
       stdevs = runif(p, min = stdev_range[1], max = stdev_range[2])
     )
 
     if (corType == "mixed") {
       # convert to mixed sign matrix
-      Sig <- convert_posmat_to_mixed(Sig)
+      Sig <- flip_signs_mat(Sig, ensure_PD = TRUE)
     }
 
   } else {
@@ -69,20 +65,12 @@ simulate_bottom_var <- function(
     }
   }
 
-
   # ----- Simulate data from the VAR(1) Process -----
-  # We do a direct simulation: y_t = A y_{t-1} + eps_t, eps_t ~ N(0, Sig)
+  # y_t = A y_{t-1} + eps_t, eps_t ~ N(0, Sig)
 
-  # We'll store entire time series from t=1..(T+burnin)
-  Yfull <- matrix(0, nrow=T+burnin, ncol=p)
-
-  # for initialization let's just use zero or small random
-  # optionally do a stationarity approach, but let's keep it simple
-  # Sample y_1 from stationary dist, or just zero
-  # For a robust approach, we do a short burnin anyway.
-
-  # We'll do random initialization:
-  Yfull[1,] <- mvrnorm(1, mu=rep(0,p), Sigma=Sig)
+  Yfull <- matrix(0, nrow = T + burnin, ncol = p)
+  # Random initialise
+  Yfull[1,] <- MASS::mvrnorm(1, mu=rep(0,p), Sigma=Sig)
 
   for(t in 2:(T+burnin)) {
     eps_t <- MASS::mvrnorm(1, mu=rep(0,p), Sigma=Sig)
@@ -92,26 +80,35 @@ simulate_bottom_var <- function(
   # discard the first 'burnin' steps
   Y <- Yfull[(burnin+1):(T+burnin), , drop=FALSE]
 
-  # return results
-  list(
-    Y = Y,             # final T x p matrix of bottom series
-    A = A,             # the block-diagonal VAR(1) coefficient matrix
-    Sig = Sig,         # the block-diagonal innovation covariance
-    groups = groups,
-    Ablocks = Ablocks,
-    Sigblocks = Sigblocks,
-    burnin = burnin
-  )
+  return(list(
+    Y = Y,
+    A = A,
+    Sig = Sig,
+    groups = groups
+  ))
 }
 
 
+#' Generate Correlation Structure using Hardin et al. (2013) algorithm 1
+#'
+#' Start with constant correlations within each group (rhos) and between
+#' each group (delta). Then add random noise to all elements of the matrix, by
+#' scaling epsilon by outer cross products of random unit vectors.
+#'
+#' @references
+#' Hardin, J., Garcia, S. R., & Golan, D. (2013). A method for generating realistic correlation matrices. The Annals of Applied Statistics, 7(3), 1733–1762. https://www.jstor.org/stable/23566492
+#'
+#' @export
 generate_cor <- function (
     groups = c(2, 3, 4),
     rho = runif(length(groups), 0.2, 0.7),
     delta = min(rho) * 0.8,
     epsilon = (1 - max(rho)) * 0.8,
-    eidim = 2
+    eidim = 2,
+    random_seed = NULL
 ) {
+  if(!is.null(random_seed)) set.seed(random_seed)
+
   k <- length(groups)               # number of groups
   p <- sum(groups)                  # total dimension
 
@@ -137,52 +134,6 @@ generate_cor <- function (
   finalcor <- bigcor + bigE
   return(finalcor)
 }
-
-
-#' Convert correlation to covariance matrix
-#'
-convert_cor_to_cov <- function(
-    cor,
-    stdevs = runif(nrow(cor), sqrt(2), sqrt(6))
-) {
-  p <- nrow(cor)
-  cov <- diag(stdevs) %*% cor %*% diag(stdevs)
-  return(cov)
-}
-
-
-#' Convert totally positive matrix to mixed sign matrix
-convert_posmat_to_mixed <- function(mat, flip_prob = 0.5, ensure_PD = TRUE) {
-  # Check that mat is a square matrix
-  if(nrow(mat) != ncol(mat)) {
-    stop("Input matrix must be square.")
-  }
-  n <- nrow(mat)
-  mat_new <- mat
-  # Indices for upper & lower triangle (excluding diagonal)
-  upper_idx <- which(upper.tri(mat_new))
-  lower_idx <- which(lower.tri(mat_new))
-
-  # Generate random multipliers (-1 with probability flip_prob, otherwise +1)
-  flip_factors <- ifelse(runif(length(upper_idx)) < flip_prob, -1, 1)
-
-  mat_new[upper_idx] <- mat_new[upper_idx] * flip_factors
-  mat_new[lower_idx] <- t(mat_new)[lower_idx]
-
-  # Check PD
-  if (any(eigen(mat_new)$values <= 1e-8)) {
-    cat("Flipped matrix is not positive definite.\n")
-    # Ensure PD?
-    if (ensure_PD) {
-      iscorr <- all(abs(diag(mat_new) - 1) < 1e-8)
-      mat_new <- nearPD(mat_new, corr = iscorr)$mat
-      cat("Converted to PD matrix using nearPD() algorithm of Higham (2002).\n")
-    }
-  }
-
-  return(mat_new)
-}
-
 
 
 #' Generate Block-Diagonal VAR(1) Coefficient Matrix
@@ -262,9 +213,56 @@ generate_block_diag <- function(
 }
 
 
-#' Helper function
+#' Convert correlation to covariance matrix
 #'
-#' Combine blocks into single block diagonal A
+convert_cor2cov <- function(
+    cor,
+    stdevs = runif(nrow(cor), sqrt(2), sqrt(6))
+) {
+  p <- nrow(cor)
+  cov <- diag(stdevs) %*% cor %*% diag(stdevs)
+  return(cov)
+}
+
+
+#' Flip totally positive matrix to mixed-sign matrix
+#'
+#' Randomly flips signs of the elements with probability \code{flip_prob}.
+#'
+flip_signs_mat <- function(mat, flip_prob = 0.5, ensure_PD = TRUE) {
+  # Check that mat is a square matrix
+  if(nrow(mat) != ncol(mat)) {
+    stop("Input matrix must be square.")
+  }
+  n <- nrow(mat)
+  mat_new <- mat
+  # Indices for upper & lower triangle (excluding diagonal)
+  upper_idx <- which(upper.tri(mat_new))
+  lower_idx <- which(lower.tri(mat_new))
+
+  # Generate random multipliers (-1 with probability flip_prob, otherwise +1)
+  flip_factors <- ifelse(runif(length(upper_idx)) < flip_prob, -1, 1)
+
+  mat_new[upper_idx] <- mat_new[upper_idx] * flip_factors
+  mat_new[lower_idx] <- t(mat_new)[lower_idx]
+
+  # Check PD
+  if (any(eigen(mat_new)$values <= 1e-8)) {
+    cat("Flipped matrix is not positive definite.\n")
+    # Ensure PD?
+    if (ensure_PD) {
+      iscorr <- all(abs(diag(mat_new) - 1) < 1e-8)
+      mat_new <- Matrix::nearPD(mat_new, corr = iscorr)$mat
+      cat("Converted to PD matrix using nearPD() algorithm of Higham (2002).\n")
+    }
+  }
+
+  return(mat_new)
+}
+
+
+#' Combine blocks into a block diagonal matrix
+#'
 combine_blocks <- function(blocks) {
   k <- length(blocks)
   p <- sum(sapply(blocks, nrow))   # total dimension
