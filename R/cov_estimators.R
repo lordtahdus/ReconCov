@@ -14,20 +14,17 @@
 #'   \item{cov.shr}{the shrinkage covariance matrix}
 #'
 #' @export
-shrinkage_est <- function(resid, lambda, zero_mean = TRUE){
+shrinkage_est <- function(resid, lambda = NULL, zero_mean = TRUE){
 
   # Check input
   if (any(is.na(resid))) {
     print("NA presents in Residuals, function will omits rows with NA")
   }
-  if (lambda < 0 || lambda > 1) {
-    stop("Lambda must be between 0 and 1.")
-  }
 
   covm <- compute_cov_matrix(resid, zero_mean)
   target_matrix <- diag(diag(covm))
 
-  if (missing(lambda)) {
+  if (is.null(lambda)) {
     r <- cov2cor(covm)
     corapn <- cov2cor(target_matrix)
 
@@ -41,13 +38,17 @@ shrinkage_est <- function(resid, lambda, zero_mean = TRUE){
 
     # Compute lambda for the shrinkage estimator
     lambda <- if (denom == 0) 0 else numer / denom
+  } else {
+    if (lambda < 0 || lambda > 1) {
+      stop("Lambda must be between 0 and 1.")
+    }
   }
   lambda <- max(min(lambda, 1), 0)  # ensure lambda in [0,1]
 
   W <- lambda * target_matrix + (1 - lambda) * covm
   return(list(
     lambda = lambda,
-    cov.shr = W
+    cov = W
   ))
 }
 
@@ -69,7 +70,7 @@ shrinkage_est <- function(resid, lambda, zero_mean = TRUE){
 #'   \item{cov.novelist}{the NOVELIST covariance matrix}
 #'
 #' @export
-novelist_est <- function(resid, delta, lambda, zero_mean = TRUE){
+novelist_est <- function(resid, delta, lambda = NULL, zero_mean = TRUE){
 
   # Check input
   if (any(is.na(resid))) {
@@ -77,9 +78,6 @@ novelist_est <- function(resid, delta, lambda, zero_mean = TRUE){
   }
   if (delta < 0 || delta > 1) {
     stop("Delta must be between 0 and 1.")
-  }
-  if (lambda < 0 || lambda > 1) {
-    stop("Lambda must be between 0 and 1.")
   }
 
   T <- nrow(resid)
@@ -99,9 +97,13 @@ novelist_est <- function(resid, delta, lambda, zero_mean = TRUE){
   numer <- sum(v[abs(r) <= delta])
   denom <- sum((r - r_thresh)^2)
 
-  if (missing(lambda)) {
+  if (is.null(lambda)) {
     # Compute lambda for NOVELIST using only off-diagonals (v's diagonal is zero already).
     lambda <- if (denom == 0) 0 else numer / denom
+  } else {
+    if (lambda < 0 || lambda > 1) {
+      stop("Lambda must be between 0 and 1.")
+    }
   }
   lambda <- max(min(lambda, 1), 0)  # ensure lambda in [0,1]
 
@@ -115,7 +117,7 @@ novelist_est <- function(resid, delta, lambda, zero_mean = TRUE){
   # cat("Lambda: ", lambda, "\n")
   return(list(
     lambda = lambda,
-    cov.novelist = W
+    cov = W
   ))
 }
 

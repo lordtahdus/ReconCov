@@ -72,7 +72,7 @@ novelist_cv <- function(
         resid     = train_resid,
         delta     = delta,
         zero_mean = zero_mean
-      )$cov.novelist
+      )$cov
 
       if (any(eigen(cov_novelist)$values <= 1e-8)) {
         stop("The covariance matrix is not positive definite. Function will be fixed")
@@ -116,7 +116,7 @@ novelist_cv <- function(
     zero_mean = zero_mean
   )
 
-  final_cov_novelist <- novelist_results$cov.novelist
+  final_cov_novelist <- novelist_results$cov
   lambda_star <- novelist_results$lambda
 
   # Check final positive definiteness
