@@ -6,12 +6,17 @@ editor_options:
 
 
 ```{r}
-library(dplyr)
 library(MASS)
 library(matrixcalc)
 library(Matrix)
-library(devtools)
+library(dplyr)
+library(tidyr)
 
+library(fabletools)
+library(fable)
+library(feasts)
+
+library(devtools)
 load_all()
 ```
 
@@ -28,7 +33,7 @@ Sigma <- generate_cor(
   groups = groups
 )
 
-bottom <- simulate_bottom_var(groups, T = 10, intercept = 100)
+bottom <- simulate_bottom_var(groups, T = 100, intercept = 100)
 
 # build_hierarchy(bottom$Y, bottom$groups)$hier_data
 ```
@@ -77,5 +82,45 @@ build_2level_hierarchy <- function(bottom_data, groups) {
 ```{r}
 info_2level <- build_2level_hierarchy(bottom$Y, bottom$groups)
 S <- info_2level$S
+hts <- info_2level$hier_data
+
+```
+
+
+# NOVELIST
+
+```{r}
+bottom_series <- hts[,4:8] %>% 
+  as.data.frame() %>% 
+  mutate(time = seq(1, nrow(hts))) %>% 
+  # select(time, everything()) %>% 
+  as_tsibble(index = time) %>% 
+  pivot_longer(
+    cols = -time,
+    names_to = "series",
+    values_to = "value"
+  )
+
+fit <- bottom_series %>% 
+  filter(time <= 80) %>% 
+  model(
+    arima = ARIMA(value)
+  )
+
+```
+
+
+*Get in-sample actual & fitted values*
+
+```{r}
+y_hat <- fit %>% 
+  augment() %>% 
+  select(.fitted, series) %>%
+  pivot_wider(names_from = series, values_from = .fitted) %>% 
+  as_tibble() %>% 
+  select(-time) %>% 
+  as.matrix()
+
+y <- hts[1:80,4:8]
 ```
 
