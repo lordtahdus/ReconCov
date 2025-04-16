@@ -129,6 +129,7 @@ generate_cor <- function (
         (sum(groups[1:(i - 1)]) + 1):sum(groups[1:i])
       ] <- cor
     }
+    # TODO: use Matrix::bdiag() instead
   }
   diag(bigcor) <- 1 - epsilon
 
@@ -137,6 +138,11 @@ generate_cor <- function (
     ei <- runif(eidim, -1, 1)
     eivect <- cbind(eivect, sqrt(epsilon) * ei/sqrt(sum(ei^2)))
   }
+  # TODO: avoid loop
+  # E_raw <- matrix(runif(eidim * p, min = -1, max = 1), nrow = eidim)
+  # norms <- sqrt(colSums(E_raw^2))
+  # eivect <- sweep(E_raw, 2, norms, FUN = "/") * sqrt(epsilon)
+
   bigE <- t(eivect) %*% eivect
   finalcor <- bigcor + bigE
   return(finalcor)
@@ -208,6 +214,7 @@ generate_block_diag <- function(
       block <- diag(diag_vals) + offdiag_mat
       sr <- max(abs(eigen(block)$values))
     }
+    # TODO: ensure max attempts
     blocks[[i]] <- block
   }
   # Combine blocks into single block diagonal A
@@ -226,6 +233,7 @@ convert_cor2cov <- function(
     cor,
     stdevs = runif(nrow(cor), sqrt(2), sqrt(6))
 ) {
+  # TODO: check if cor is a correlation matrix
   p <- nrow(cor)
   cov <- diag(stdevs) %*% cor %*% diag(stdevs)
   return(cov)
@@ -269,6 +277,8 @@ flip_signs_mat <- function(mat, flip_prob = 0.5, ensure_PD = TRUE) {
 
 
 #' Combine blocks into a block diagonal matrix
+#'
+#' TODO: Depreciated, use Matrix::bdiag() |> as.matrix() instead
 #'
 combine_blocks <- function(blocks) {
   k <- length(blocks)
