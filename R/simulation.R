@@ -69,12 +69,12 @@ simulate_bottom_var <- function(
   # Simulate data from the VAR(1) Process
   Yfull <- matrix(0, nrow = T + burnin, ncol = p)
   Yfull[1,] <- MASS::mvrnorm(1, mu=rep(0,p), Sigma=Sig) #random initialise
-
+  eps <- MASS::mvrnorm(T + burnin, mu=rep(0,p), Sigma=Sig) # random noise
   # y_t = A y_{t-1} + eps_t, eps_t ~ N(0, Sig)
   for(t in 2:(T+burnin)) {
-    eps_t <- MASS::mvrnorm(1, mu=rep(0,p), Sigma=Sig)
-    Yfull[t,] <- A %*% Yfull[t-1,] + eps_t
+    Yfull[t,] <- A %*% Yfull[t-1,] + eps[t,]
   }
+  # TODO: optimise
 
   # discard the first 'burnin' steps
   Y <- Yfull[(burnin+1):(T+burnin), , drop=FALSE]
