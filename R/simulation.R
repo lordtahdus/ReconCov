@@ -176,6 +176,7 @@ generate_block_diag <- function(
     groups = c(2, 3, 4),
     diag_range = c(0.2, 0.9),
     offdiag_range = c(-0.1, 0.1),
+    stationary = TRUE,
     random_seed = NULL
 ) {
   # Allows user to fix the random seed for reproducibility
@@ -204,20 +205,22 @@ generate_block_diag <- function(
     # Combine diag & offdiag
     block <- diag(diag_vals, nrow = gsize) + offdiag_mat
 
-    # Ensure stability by decreasing the scale until spectral radius < 1 or attempts done
-    sr <- max(abs(eigen(block)$values))
-    # Warning
-    if (sr >= 0.99) {
-      message("Simulated block matrix is unstable (not stationary).",
-              "Attempt to rescale of off-diagonal elements.")
-    }
-    while(sr >= 0.99) {
-      # reduce the off diag portion
-      offdiag_mat <- 0.95 * offdiag_mat
-      block <- diag(diag_vals) + offdiag_mat
+    if (stationary) {
+      # Ensure stability by decreasing the scale until spectral radius < 1 or attempts done
       sr <- max(abs(eigen(block)$values))
+      # Warning
+      if (sr >= 0.99) {
+        message("Simulated block matrix is unstable (not stationary).",
+                "Attempt to rescale of off-diagonal elements.")
+      }
+      while(sr >= 0.99) {
+        # reduce the off diag portion
+        offdiag_mat <- 0.95 * offdiag_mat
+        block <- diag(diag_vals) + offdiag_mat
+        sr <- max(abs(eigen(block)$values))
+      }
+      # TODO: ensure max attempts
     }
-    # TODO: ensure max attempts
     blocks[[i]] <- block
   }
   # Combine blocks into single block diagonal A

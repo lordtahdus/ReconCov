@@ -1,12 +1,13 @@
 # --------------- generate_block_diag() ---------------
 
 test_that("Return list has fields A and blocks with correct dimensions", {
-  groups <- c(2, 3, 5)
+  groups <- c(2, 3, 50)
   p <- sum(groups)
   res <- generate_block_diag(
     groups = groups,
     diag_range = c(0.7, 0.9),
     offdiag_range = c(-0.1, 0.1),
+    stationary = TRUE,
     random_seed = 1
   )
 
@@ -53,10 +54,11 @@ test_that("A is block-diagonal with each block matching corresponding submatrix"
 })
 
 test_that("Using offdiag_range = 0 yields diagonal-only blocks", {
-  groups <- c(2, 3, 10)
+  groups <- c(2, 3, 37)
   res <- generate_block_diag(
     groups = groups,
-    offdiag_range = 0
+    offdiag_range = 0,
+    stationary = FALSE
   )
   for (block in res$blocks) {
     # Off-diagonals must be exactly 0
@@ -65,10 +67,11 @@ test_that("Using offdiag_range = 0 yields diagonal-only blocks", {
 })
 
 test_that("Constant diag_range yields blocks with constant diagonal values", {
-  groups <- c(1, 2, 3)
+  groups <- c(69, 2, 3)
   res <- generate_block_diag(
     groups = groups,
-    diag_range = c(0.5, 0.5)
+    diag_range = c(0.5, 0.5),
+    stationary = FALSE
   )
   for (block in res$blocks) {
     expect_equal(diag(block), rep(0.5, nrow(block)))
