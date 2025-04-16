@@ -7,6 +7,7 @@
 #' @param groups Integer vector specifying the sizes of each bottom-level group, e.g.
 #'   \code{c(2,3,4)} means three blocks (2D, 3D, 4D) for a total of \eqn{\sum groups} series.
 #' @param T Integer, the number of time steps of final output (excluding burn-in).
+#' @param intercept Numeric, the intercept term for the VAR(1) process (default is 0).
 #' @param A \eqn{p \times p} matrix of VAR(1) coefficients. If \code{NULL} (default),
 #'   a block-diagonal matrix is generated via \code{\link{generate_block_diag}}.
 #' @param Sig \eqn{p \times p} covariance matrix of innovations. If \code{NULL}
@@ -28,6 +29,7 @@
 simulate_bottom_var <- function(
     groups = c(2, 3, 4),
     T = 100,
+    intercept = 0,
     A = NULL,
     Sig = NULL,
     burnin = 50,
@@ -78,6 +80,7 @@ simulate_bottom_var <- function(
 
   # discard the first 'burnin' steps
   Y <- Yfull[(burnin+1):(T+burnin), , drop=FALSE]
+  Y <- Y + intercept
 
   return(list(
     Y = Y,
