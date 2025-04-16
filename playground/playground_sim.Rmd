@@ -22,18 +22,21 @@ load_all()
 
 
 ```{r}
-groups <- c(2,3)
-# diag_range <- c(0.2, 0.9)
+groups <- c(10,10)
+T <-  300
+Tsplit <- 250
+diag_range <- c(0.5, 0.9)
 
 A <- generate_block_diag(
-  groups = groups
-)
+  groups = groups,
+  diag_range = diag_range
+)$A
 
 Sigma <- generate_cor(
   groups = groups
 )
 
-bottom <- simulate_bottom_var(groups, T = 100, intercept = 100)
+bottom <- simulate_bottom_var(groups, T, intercept = 100, A=A, Sig=Sigma)
 
 # build_hierarchy(bottom$Y, bottom$groups)$hier_data
 ```
@@ -59,21 +62,17 @@ build_2level_hierarchy <- function(bottom_data, groups) {
   # Bottom-level is the identity matrix.
   S_bottom <- diag(1, nrow = p, ncol = p)
   
-  # Combine the summation rows.
-  # Order: Top-level, then Group-level, then Bottom-level.
-  S <- rbind(S_top, S_group, S_bottom)
-  
-  # Aggregate the data.
+  S <- rbind(S_bottom, S_group, S_top)
   hier_data <- bottom_data %*% t(S)
   
   # Create series names.
-  series_names <- c("Top", paste0("G", seq_len(G)), paste0("B", 1:p))
+  series_names <- c(paste0("B", 1:p), paste0("G", seq_len(G)), "Top")
   colnames(hier_data) <- series_names
   rownames(S) <- series_names
   
   return(list(
-    hier_data = hier_data,  # T x M, where M = 1 + G + p
-    S = S,                  # (1 + G + p) x p summation matrix.
+    hier_data = hier_data,
+    S = S,
     series_names = series_names
   ))
 }
@@ -82,7 +81,7 @@ build_2level_hierarchy <- function(bottom_data, groups) {
 ```{r}
 info_2level <- build_2level_hierarchy(bottom$Y, bottom$groups)
 S <- info_2level$S
-hts <- info_2level$hier_data
+hts_mat <- info_2level$hier_data
 
 ```
 
@@ -90,9 +89,9 @@ hts <- info_2level$hier_data
 # NOVELIST
 
 ```{r}
-bottom_series <- hts[,4:8] %>% 
+hts <- hts_mat %>% 
   as.data.frame() %>% 
-  mutate(time = seq(1, nrow(hts))) %>% 
+  mutate(time = seq(1, nrow(hts_mat))) %>% 
   # select(time, everything()) %>% 
   as_tsibble(index = time) %>% 
   pivot_longer(
@@ -101,11 +100,13 @@ bottom_series <- hts[,4:8] %>%
     values_to = "value"
   )
 
-fit <- bottom_series %>% 
-  filter(time <= 80) %>% 
+fit <- hts %>% 
+  filter(time <= Tsplit) %>% 
   model(
     arima = ARIMA(value)
   )
+
+fc <- fit |> forecast(h = T-Tsplit)
 
 ```
 
@@ -115,12 +116,56 @@ fit <- bottom_series %>%
 ```{r}
 y_hat <- fit %>% 
   augment() %>% 
-  select(.fitted, series) %>%
-  pivot_wider(names_from = series, values_from = .fitted) %>% 
+  select(series, .fitted) %>%
+  pivot_wider(names_from = series, values_from = .fitted, names_sort = FALSE) %>% 
   as_tibble() %>% 
   select(-time) %>% 
   as.matrix()
 
-y <- hts[1:80,4:8]
+y <- hts_mat[1:Tsplit,]
+
+actual <- hts_mat[(Tsplit + 1):T,]
+
+base_fc <- fc %>% 
+  as_tibble() %>% 
+  select(series, .mean, time) %>%
+  pivot_wider(names_from = series, values_from = .mean) %>%
+  select(-time) %>% 
+  as.matrix()
 ```
+
+```{r}
+deltas <- seq(0,1,by=0.05)
+
+W_shr <- shrinkage_est(
+  y - y_hat
+)
+
+W_n <- novelist_cv(
+  y,
+  y_hat,
+  S,
+  window = round(Tsplit/2)
+)
+```
+
+```{r}
+plot(deltas, W_n$errors_by_delta,
+  type = "l"
+  # ylim = c(results$errors_by_delta %>% min(),results$errors_by_delta %>% mean())
+)
+points(W_n$delta, W_n$errors_by_delta %>% min(), col = "red")
+```
+
+```{r}
+recon_mint_shr <- reconcile_mint(base_fc, S, W_shr$cov)
+recon_mint_n <- reconcile_mint(base_fc, S, W_n$cov)
+
+# RMSE of my MinT NOVELIST an Shrinkage
+sqrt(colMeans((actual - base_fc)^2)) %>% mean()
+sqrt(colMeans((actual - recon_mint_shr)^2)) %>% mean()
+sqrt(colMeans((actual - recon_mint_n)^2)) %>% mean()
+```
+
+
 
