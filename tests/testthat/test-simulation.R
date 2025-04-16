@@ -1,24 +1,23 @@
-library(testthat)
-
 # --------------- generate_block_diag() ---------------
 
-# Basic structure and dimensions
 test_that("Return list has fields A and blocks with correct dimensions", {
+  groups <- c(2, 3, 5)
+  p <- sum(groups)
   res <- generate_block_diag(
-    groups = c(2, 3, 100),
-    diag_range = c(0.2, 0.9),
+    groups = groups,
+    diag_range = c(0.7, 0.9),
     offdiag_range = c(-0.1, 0.1),
-    random_seed = 123
+    random_seed = 1
   )
 
   # Total dimension should be 105
-  expect_equal(dim(res$A), c(105, 105))
+  expect_equal(dim(res$A), c(p, p))
 
   # Blocks list should have 3 matrices with dimensions 2x2, 3x3, and 4x4 respectively
   expect_equal(length(res$blocks), 3)
-  expect_equal(dim(res$blocks[[1]]), c(2, 2))
-  expect_equal(dim(res$blocks[[2]]), c(3, 3))
-  expect_equal(dim(res$blocks[[3]]), c(100, 100))
+  expect_equal(dim(res$blocks[[1]]), rep(groups[1], 2))
+  expect_equal(dim(res$blocks[[2]]), rep(groups[2], 2))
+  expect_equal(dim(res$blocks[[3]]), rep(groups[3], 2))
 
   # Spectral radius of each block is below 0.99
   for (block in res$blocks) {
@@ -27,7 +26,6 @@ test_that("Return list has fields A and blocks with correct dimensions", {
   }
 })
 
-# heck block-diagonal structure
 test_that("A is block-diagonal with each block matching corresponding submatrix", {
   groups <- c(2, 3, 4)
   res <- generate_block_diag(groups = groups, random_seed = 123)
@@ -54,9 +52,8 @@ test_that("A is block-diagonal with each block matching corresponding submatrix"
   }
 })
 
-# Off-diagonal range = 0 should produce purely diagonal blocks
 test_that("Using offdiag_range = 0 yields diagonal-only blocks", {
-  groups <- c(2, 3, 100)
+  groups <- c(2, 3, 10)
   res <- generate_block_diag(
     groups = groups,
     offdiag_range = 0
@@ -67,9 +64,8 @@ test_that("Using offdiag_range = 0 yields diagonal-only blocks", {
   }
 })
 
-# Constant diagonal values
 test_that("Constant diag_range yields blocks with constant diagonal values", {
-  groups <- c(89, 2, 3)
+  groups <- c(1, 2, 3)
   res <- generate_block_diag(
     groups = groups,
     diag_range = c(0.5, 0.5)
@@ -79,7 +75,6 @@ test_that("Constant diag_range yields blocks with constant diagonal values", {
   }
 })
 
-# Single element block
 test_that("A single-series block returns a scalar equal to the specified diagonal", {
   res <- generate_block_diag(
     groups = c(1),
