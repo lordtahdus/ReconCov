@@ -42,7 +42,9 @@ construct_S <- function(
   bottom_labels <- unlist(bottom_blocks)
 
   # Build one sparse block-per-level, top-down
-  levels <- list(); prev_blocks <- bottom_blocks
+  levels <- list()
+  prev_blocks <- bottom_blocks
+
   for(level_groups in structure[-1]) {
     parent_ids <- seq_along(level_groups)
     parent_labels <- paste0(LETTERS[length(levels)+2], parent_ids)
@@ -80,7 +82,45 @@ construct_S <- function(
 
 
 ############### ARCHIVED #################
-#'
+
+
+# build_2level_hierarchy <- function(bottom_data, groups) {
+#
+#   T <- nrow(bottom_data)
+#   p <- ncol(bottom_data)
+#
+#   # Number of groups
+#   G <- length(groups)
+#
+#   # Level 1 (Group-level) aggregation:
+#   group_indices <- split(1:p, rep(1:G, groups))
+#   S_group <- matrix(0, nrow = G, ncol = p)
+#   for (i in seq_len(G)) {
+#     S_group[i, group_indices[[i]]] <- 1
+#   }
+#
+#   # Level 2 (Top-level) aggregation:
+#   S_top <- matrix(1, nrow = 1, ncol = p)
+#   # Bottom-level is the identity matrix.
+#   S_bottom <- diag(1, nrow = p, ncol = p)
+#
+#   S <- rbind(S_bottom, S_group, S_top)
+#   hier_data <- bottom_data %*% t(S)
+#
+#   # Create series names.
+#   series_names <- c(paste0("B", 1:p), paste0("G", seq_len(G)), "Top")
+#   colnames(hier_data) <- series_names
+#   rownames(S) <- series_names
+#
+#   return(list(
+#     hier_data = hier_data,
+#     S = S,
+#     series_names = series_names
+#   ))
+# }
+
+
+
 #' #' Build a hierarchy from bottom level series
 #' #'
 #' #' @param bottom_data A numeric matrix of dimension T x p containing the bottom-level series

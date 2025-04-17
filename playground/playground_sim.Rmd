@@ -7,7 +7,7 @@ editor_options:
 
 ```{r}
 library(MASS)
-library(matrixcalc)
+# library(matrixcalc)
 library(Matrix)
 library(dplyr)
 library(tidyr)
@@ -42,51 +42,25 @@ bottom <- simulate_bottom_var(groups, T, intercept = 100, A=A, Sig=Sigma)
 # build_hierarchy(bottom$Y, bottom$groups)$hier_data
 ```
 
-```{r}
-build_2level_hierarchy <- function(bottom_data, groups) {
-  
-  T <- nrow(bottom_data)
-  p <- ncol(bottom_data)
-  
-  # Number of groups
-  G <- length(groups)
-  
-  # Level 1 (Group-level) aggregation:
-  group_indices <- split(1:p, rep(1:G, groups))
-  S_group <- matrix(0, nrow = G, ncol = p)
-  for (i in seq_len(G)) {
-    S_group[i, group_indices[[i]]] <- 1
-  }
-  
-  # Level 2 (Top-level) aggregation:
-  S_top <- matrix(1, nrow = 1, ncol = p)
-  # Bottom-level is the identity matrix.
-  S_bottom <- diag(1, nrow = p, ncol = p)
-  
-  S <- rbind(S_bottom, S_group, S_top)
-  hier_data <- bottom_data %*% t(S)
-  
-  # Create series names.
-  series_names <- c(paste0("B", 1:p), paste0("G", seq_len(G)), "Top")
-  colnames(hier_data) <- series_names
-  rownames(S) <- series_names
-  
-  return(list(
-    hier_data = hier_data,
-    S = S,
-    series_names = series_names
-  ))
-}
-```
+
 
 ```{r}
-info_2level <- build_2level_hierarchy(bottom$Y, bottom$groups)
-S <- info_2level$S
-hts_mat <- info_2level$hier_data
+structure <- list(
+  groups,
+  list(seq(1,length(groups)))
+)
+S <- construct_S(
+  structure = structure,
+  sparse = FALSE
+)
+hts_mat <- bottom$Y %*% t(S)
+
+# info_2level <- build_2level_hierarchy(bottom$Y, bottom$groups)
+# S <- info_2level$S
+# hts_mat <- info_2level$hier_data
 ```
 
-
-# NOVELIST
+*Forecast*
 
 ```{r}
 hts <- hts_mat %>% 
@@ -172,5 +146,128 @@ sqrt(colMeans((actual - recon_mint_shr)^2)) %>% mean()
 sqrt(colMeans((actual - recon_mint_n)^2)) %>% mean()
 ```
 
+
+
+# LOOOOOOOOOOOPPPPPPPPPPPPPPP
+
+```{r}
+run_loop <- function() {
+  
+  A <- generate_block_diag(
+    groups = groups,
+    diag_range = diag_range
+  )$A
+  Sigma <- generate_cor(
+    groups = groups,
+    eidim = 5
+  )
+  bottom <- simulate_bottom_var(groups, T, intercept = 100, A=A, Sig=Sigma)
+  
+  S <- construct_S(
+    structure = structure,
+    sparse = FALSE
+  )
+  hts_mat <- bottom$Y %*% t(S)
+  
+  # Forecast
+  hts <- hts_mat %>% 
+    as.data.frame() %>% 
+    mutate(time = seq(1, nrow(hts_mat))) %>% 
+    # select(time, everything()) %>% 
+    as_tsibble(index = time) %>% 
+    pivot_longer(
+      cols = -time,
+      names_to = "series",
+      values_to = "value"
+    )
+  fit <- hts %>% 
+    filter(time <= Tsplit) %>% 
+    model(
+      arima = ARIMA(value)
+    )
+  fc <- fit |> forecast(h = T-Tsplit)
+  
+  # Get training and test data
+  y <- hts_mat[1:Tsplit,]
+  actual <- hts_mat[(Tsplit + 1):T,]
+  
+  y_hat <- fit %>% 
+    augment() %>% 
+    select(series, .fitted) %>%
+    pivot_wider(names_from = series, values_from = .fitted, names_sort = FALSE) %>% 
+    as_tibble() %>% 
+    select(-time) %>% 
+    as.matrix()
+  
+  base_fc <- fc %>% 
+    as_tibble() %>% 
+    select(series, .mean, time) %>%
+    pivot_wider(names_from = series, values_from = .mean) %>%
+    select(-time) %>% 
+    as.matrix()
+  
+  y_hat <- y_hat[, colnames(actual)]
+  base_fc <- base_fc[, colnames(actual)]
+  
+  if(!all.equal(colnames(y), colnames(y_hat), colnames(base_fc), colnames(actual)))
+    stop("Column names do not match")
+  
+  # Get covariance estimates
+  W_shr <- shrinkage_est(
+    y - y_hat
+  )
+  
+  W_n <- novelist_cv(
+    y,
+    y_hat,
+    S,
+    window = round(Tsplit/2)
+  )
+  
+  recon_mint_shr <- reconcile_mint(base_fc, S, W_shr$cov)
+  recon_mint_n <- reconcile_mint(base_fc, S, W_n$cov)
+  
+  # RMSE of my MinT NOVELIST an Shrinkage
+  return(list(
+    base = sqrt(colMeans((actual - base_fc)^2)) %>% mean(),
+    shrink = sqrt(colMeans((actual - recon_mint_shr)^2)) %>% mean(),
+    novelist = sqrt(colMeans((actual - recon_mint_n)^2)) %>% mean()
+  ))
+}
+```
+
+```{r}
+groups <- c(2,3)
+T <-  100
+Tsplit <- 80
+diag_range <- c(0.5, 0.9)
+
+structure <- list(
+  groups,
+  as.list(seq(1,length(groups))),
+  list(c(1,2))
+)
+
+deltas <- seq(0,1,by=0.05)
+
+run_loop()
+```
+
+```{r}
+results <- lapply(1:10, function(x) run_loop())
+
+```
+
+```{r}
+results <- do.call(rbind, lapply(results, unlist)) %>% as.data.frame()
+results$id <- 1:nrow(results)
+results <- results %>% melt(id.vars="id")
+
+ggplot(results, aes(x = variable, y = value, fill = variable)) +
+  geom_boxplot() +
+  labs(x = "Method", y = "Value") +
+  theme_minimal()
+
+```
 
 
