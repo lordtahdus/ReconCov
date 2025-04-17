@@ -22,9 +22,9 @@ load_all()
 
 
 ```{r}
-groups <- c(10,10)
-T <-  300
-Tsplit <- 250
+groups <- c(5,5)
+T <-  50
+Tsplit <- 40
 diag_range <- c(0.5, 0.9)
 
 A <- generate_block_diag(
@@ -33,7 +33,8 @@ A <- generate_block_diag(
 )$A
 
 Sigma <- generate_cor(
-  groups = groups
+  groups = groups,
+  eidim = 5
 )
 
 bottom <- simulate_bottom_var(groups, T, intercept = 100, A=A, Sig=Sigma)
@@ -114,6 +115,10 @@ fc <- fit |> forecast(h = T-Tsplit)
 *Get in-sample actual & fitted values*
 
 ```{r}
+y <- hts_mat[1:Tsplit,]
+
+actual <- hts_mat[(Tsplit + 1):T,]
+
 y_hat <- fit %>% 
   augment() %>% 
   select(series, .fitted) %>%
@@ -122,16 +127,17 @@ y_hat <- fit %>%
   select(-time) %>% 
   as.matrix()
 
-y <- hts_mat[1:Tsplit,]
-
-actual <- hts_mat[(Tsplit + 1):T,]
-
 base_fc <- fc %>% 
   as_tibble() %>% 
   select(series, .mean, time) %>%
   pivot_wider(names_from = series, values_from = .mean) %>%
   select(-time) %>% 
   as.matrix()
+
+y_hat <- y_hat[, colnames(actual)]
+base_fc <- base_fc[, colnames(actual)]
+
+all.equal(colnames(y), colnames(y_hat), colnames(base_fc), colnames(actual))
 ```
 
 ```{r}
