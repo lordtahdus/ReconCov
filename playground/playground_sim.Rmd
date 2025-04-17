@@ -22,7 +22,7 @@ load_all()
 
 
 ```{r}
-groups <- c(5,5)
+groups <- c(2,3)
 T <-  50
 Tsplit <- 40
 diag_range <- c(0.5, 0.9)
@@ -83,7 +83,6 @@ build_2level_hierarchy <- function(bottom_data, groups) {
 info_2level <- build_2level_hierarchy(bottom$Y, bottom$groups)
 S <- info_2level$S
 hts_mat <- info_2level$hier_data
-
 ```
 
 
