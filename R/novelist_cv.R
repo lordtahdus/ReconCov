@@ -34,7 +34,8 @@ novelist_cv <- function(
     deltas = seq(0, 1, by = 0.05),
     # reconcile_forecast = NULL,
     zero_mean = TRUE,
-    error_metric = function(actual, fc) mean((actual - fc)^2, na.rm = TRUE)
+    error_metric = function(actual, fc) mean((actual - fc)^2, na.rm = TRUE),
+    message = TRUE
 ) {
   T <- nrow(y)
   p <- ncol(y)
@@ -95,8 +96,10 @@ novelist_cv <- function(
     } # end loop over deltas
 
     # TODO: Refine Progress Printing
-    if (idx_i %% 5 == 0 || idx_i == (T - window_size)) {
-      cat("Iteration: ", idx_i, " / ", (T - window_size), "\n")
+    if (message) {
+      if (idx_i %% 5 == 0 || idx_i == (T - window_size)) {
+        cat("Iteration: ", idx_i, " / ", (T - window_size), "\n")
+      }
     }
   }
   cat("\n")
@@ -128,37 +131,9 @@ novelist_cv <- function(
   return(list(
     delta = delta_star,
     lambda = lambda_star,
-    cov.novelist = final_cov_novelist,
+    cov = final_cov_novelist,
     errors_by_delta = mean_errors
   ))
 }
 
 
-
-#' Reconcile Forecasts using Min Trace approach
-#'
-#' @param base_forecasts A matrix of base forecasts (dim T by p).
-#' @param S A matrix of reconciliation weights (dim p by b, b is number of bottom series).
-#' @param W A covariance matrix of h-step base forecast errors (dim p by p).
-#'
-reconcile_mint <- function(base_forecasts, S, W) {
-
-  R <- t(S)%*%solve(W)
-  P <- solve(R%*%S)%*%R
-
-  if (is.vector(base_forecasts)) {
-    recon_fc <- S %*% P %*% base_forecasts
-
-  } else if (nrow(S) == ncol(base_forecasts)) {
-    # reconcile each row of base forecasts
-    recon_fc <- base_forecasts
-    for (i in 1:nrow(base_forecasts)) {
-      recon_fc[i, ] <- S %*% P %*% base_forecasts[i, ]
-    }
-
-  } else {
-    stop("This function takes base forecasts as vector or T by p matrix, and S as p by b matrix.")
-  }
-
-  return(recon_fc)
-}

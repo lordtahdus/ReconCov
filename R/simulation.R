@@ -177,7 +177,8 @@ generate_block_diag <- function(
     diag_range = c(0.2, 0.9),
     offdiag_range = c(-0.1, 0.1),
     stationary = TRUE,
-    random_seed = NULL
+    random_seed = NULL,
+    message = TRUE
 ) {
   # Allows user to fix the random seed for reproducibility
   if(!is.null(random_seed)) set.seed(random_seed)
@@ -209,7 +210,7 @@ generate_block_diag <- function(
       # Ensure stability by decreasing the scale until spectral radius < 1 or attempts done
       sr <- max(abs(eigen(block)$values))
       # Warning
-      if (sr >= 0.99) {
+      if (sr >= 0.99 && message) {
         message("Simulated block matrix is unstable (not stationary).",
                 "Attempt to rescale of off-diagonal elements.")
       }
@@ -284,7 +285,7 @@ flip_signs_mat <- function(mat, flip_prob = 0.5, ensure_PD = TRUE) {
 
 #' Combine blocks into a block diagonal matrix
 #'
-#' TODO: Depreciated, use Matrix::bdiag() |> as.matrix() instead
+#' TODO: use Matrix::bdiag() |> as.matrix() instead
 #'
 combine_blocks <- function(blocks) {
   k <- length(blocks)

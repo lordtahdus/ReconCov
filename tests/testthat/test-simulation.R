@@ -1,4 +1,6 @@
+# -----------------------------------------------------
 # --------------- generate_block_diag() ---------------
+# -----------------------------------------------------
 
 test_that("Return list has fields A and blocks with correct dimensions", {
   groups <- c(2, 3, 50)
@@ -8,7 +10,8 @@ test_that("Return list has fields A and blocks with correct dimensions", {
     diag_range = c(0.7, 0.9),
     offdiag_range = c(-0.1, 0.1),
     stationary = TRUE,
-    random_seed = 1
+    random_seed = 1,
+    message = FALSE
   )
 
   # Total dimension should be 105
