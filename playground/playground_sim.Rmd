@@ -22,7 +22,7 @@ load_all()
 
 
 ```{r}
-groups <- c(2,3)
+groups <- c(2,2)
 T <-  50
 Tsplit <- 40
 diag_range <- c(0.5, 0.9)
@@ -47,22 +47,16 @@ bottom <- simulate_bottom_var(groups, T, intercept = 100, A=A, Sig=Sigma)
 ```{r}
 structure <- list(
   groups,
-  list(seq(1,length(groups)))
+  as.list(seq(1,length(groups))),
+  list(c(1,2))
 )
 S <- construct_S(
   structure = structure,
-  sparse = FALSE
+  sparse = FALSE,
+  ascending = FALSE
 )
 hts_mat <- bottom$Y %*% t(S)
 
-# info_2level <- build_2level_hierarchy(bottom$Y, bottom$groups)
-# S <- info_2level$S
-# hts_mat <- info_2level$hier_data
-```
-
-*Forecast*
-
-```{r}
 hts <- hts_mat %>% 
   as.data.frame() %>% 
   mutate(time = seq(1, nrow(hts_mat))) %>% 
@@ -74,6 +68,140 @@ hts <- hts_mat %>%
     values_to = "value"
   )
 
+hts_slide <- hts %>% 
+  tsibble::slide_tsibble(.size = Tsplit) %>% 
+  filter(.id <= T-Tsplit)
+```
+
+
+
+
+```{r}
+fit_slide <- hts_slide %>% 
+  model(
+    arima = ARIMA(value)
+  )
+
+fc_slide <- fit_slide |>
+  forecast(h = 8) |>
+  group_by(.id, series) |>
+  mutate(h = row_number()) |>
+  ungroup() |>
+  filter(time <= T) |>
+  as_fable(response = "value", distribution = value)
+
+fc_slide |>
+  accuracy(hts, 
+           by = c("h", ".model", "series")) |>
+  ggplot(aes(x = h, y = RMSE)) +
+    geom_point() +
+    facet_wrap(~series)
+```
+
+```{r}
+# RUN CROSS VALIDATION
+# for (i in seq(T-Tsplit)) {
+#   
+# }
+
+fc_new <- fc_slide
+deltas <- seq(0,1,by=0.05)
+h <- 8
+
+for (i in seq(T-Tsplit)) {
+  message("Iteration: ", i)
+  
+  start <- i
+  end <- i + Tsplit - 1
+  test_end <- min(end + h, T)
+  
+  # Get training and test data
+  y <- hts_mat[start:end, rownames(S)]
+  actual <- hts_mat[(end + 1):test_end, rownames(S)]
+  
+  y_hat <- fit_slide %>% 
+    augment() %>% 
+    filter(.id == i) %>%
+    select(series, time, .fitted) %>%
+    pivot_wider(names_from = series, values_from = .fitted, names_sort = FALSE) %>% 
+    as_tibble() %>% 
+    select(-time) %>% 
+    as.matrix()
+  y_hat <- y_hat[,rownames(S)]
+  
+  base_fc <- fc_slide %>% 
+    as_tibble() %>% 
+    filter(.id == i) %>% 
+    select(series, .mean, time) %>%
+    pivot_wider(names_from = series, values_from = .mean) %>%
+    select(-time) %>% 
+    as_tibble() %>% 
+    as.matrix()
+  base_fc <- base_fc[,rownames(S)]
+  
+  # Get covariance estimates
+  W_shr <- shrinkage_est(
+    y - y_hat
+  )
+  W_n <- novelist_cv(
+    y,
+    y_hat,
+    S,
+    window = round(Tsplit/2)
+  )
+  
+  # Reconcile
+  recon_mint_shr <- reconcile_mint(base_fc, S, W_shr$cov)
+  recon_mint_n <- reconcile_mint(base_fc, S, W_n$cov)
+  
+  # Organise reconciled results into the fc_new object
+  shr_fc <- as_tibble(recon_mint_shr) %>% 
+    mutate(h = row_number()) %>% 
+    pivot_longer(
+      cols = -h,
+      names_to = "series",
+      values_to = ".mean"
+    ) %>%
+    mutate(
+      .id    = i,
+      .model = "mint_shrink",
+      time   = end + h,
+      value  = NA
+    ) %>%
+    select(.id, series, .model, time, value, .mean, h)
+  
+  n_fc <- as_tibble(recon_mint_n) %>% 
+    mutate(h = row_number()) %>% 
+    pivot_longer(
+      cols = -h,
+      names_to = "series",
+      values_to = ".mean"
+    ) %>%
+    mutate(
+      .id    = i,
+      .model = "mint_novelist",
+      time   = end + h,
+      value  = NA
+    ) %>%
+    select(.id, series, .model, time, value, .mean, h)
+  
+  fc_new <- bind_rows(fc_new, shr_fc, n_fc)
+}
+
+fc_new |>
+  accuracy(hts, 
+           by = c("h", ".model", "series")) 
+
+fc_new %>% filter(.model != "arima") %>% 
+    mutate(value = distributional::dist_normal(.mean, NA)) |>
+    accuracy(hts, 
+             by = c("h", ".model", "series")) 
+```
+
+
+*Forecast*
+
+```{r}
 fit <- hts %>% 
   filter(time <= Tsplit) %>% 
   model(
