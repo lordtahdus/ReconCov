@@ -104,7 +104,7 @@ fc_slide |>
 #   
 # }
 
-fc_new <- fc_slide
+fc_new <- fc_slide[0, ] # empty tibble to store results
 deltas <- seq(0,1,by=0.05)
 h <- 8
 
@@ -188,14 +188,14 @@ for (i in seq(T-Tsplit)) {
   fc_new <- bind_rows(fc_new, shr_fc, n_fc)
 }
 
-fc_new |>
+fc_new <- fc_new |>
+    mutate(value = distributional::dist_normal(.mean, NA)) 
+
+fc_full <- bind_rows(fc_slide, fc_new) 
+
+results <- fc_full |>
   accuracy(hts, 
            by = c("h", ".model", "series")) 
-
-fc_new %>% filter(.model != "arima") %>% 
-    mutate(value = distributional::dist_normal(.mean, NA)) |>
-    accuracy(hts, 
-             by = c("h", ".model", "series")) 
 ```
 
 
