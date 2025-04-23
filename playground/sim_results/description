@@ -1,23 +1,41 @@
 ------------------
+
 sim1
+3 Levels: 8 - 4 - 2 - 1
 
 T <-  200
 Tsplit <- 160
 diag_range <- c(0.2, 0.9)
 
-    A11 A12 A21 A22 A31 A32 A41 A42
-D1    1   1   1   1   1   1   1   1
-C1    1   1   1   1   0   0   0   0
-C2    0   0   0   0   1   1   1   1
-B1    1   1   0   0   0   0   0   0
-B2    0   0   1   1   0   0   0   0
-B3    0   0   0   0   1   1   0   0
-B4    0   0   0   0   0   0   1   1
-A11   1   0   0   0   0   0   0   0
-A12   0   1   0   0   0   0   0   0
-A21   0   0   1   0   0   0   0   0
-A22   0   0   0   1   0   0   0   0
-A31   0   0   0   0   1   0   0   0
-A32   0   0   0   0   0   1   0   0
-A41   0   0   0   0   0   0   1   0
-A42   0   0   0   0   0   0   0   1
+Default arguments for Simulation
+
+------------------
+
+sim2
+3 Levels: 16 - 4 - 2 - 1
+
+groups <- c(4,4,4,4)
+T <-  200
+Tsplit <- 160
+diag_range <- c(0.2, 0.9)
+
+Default arguments for Simulation
+
+------------------
+
+sim3
+2 Levels: 36 - 6 - 1
+
+groups <- c(6,6,6,6,6,6)
+T <-  200
+Tsplit <- 160
+diag_range <- c(0.2, 0.7)
+
+Default arguments for Simulation
+
+------------------
+
+sim4
+2 Levels: 36 - 6 - 1
+
+Similar to sim3 except flipping correlation matrix signs
