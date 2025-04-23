@@ -21,9 +21,9 @@ load_all()
 
 ```{r}
 groups <- c(2,2,2,2)
-T <-  100
-Tsplit <- 80
-diag_range <- c(0.5, 0.9)
+T <-  200
+Tsplit <- 160
+diag_range <- c(0.2, 0.9)
 
 A <- generate_block_diag(
   groups = groups,
@@ -34,11 +34,10 @@ Sigma <- generate_cor(
   groups = groups,
   eidim = 5
 )
+Sigma <- convert_cor2cov(Sigma)
 
 bottom <- simulate_bottom_var(groups, T, intercept = 100, A=A, Sig=Sigma)
 ```
-
-
 
 ```{r}
 structure <- list(
@@ -52,6 +51,9 @@ S <- construct_S(
   sparse = FALSE,
   ascending = FALSE
 )
+```
+
+```{r}
 hts_mat <- bottom$Y %*% t(S)
 
 hts <- hts_mat %>% 
@@ -68,9 +70,7 @@ hts <- hts_mat %>%
 hts_slide <- hts %>% 
   tsibble::slide_tsibble(.size = Tsplit) %>% 
   filter(.id <= T-Tsplit)
-```
 
-```{r}
 fit_slide <- hts_slide %>% 
   model(
     arima = ARIMA(value)
