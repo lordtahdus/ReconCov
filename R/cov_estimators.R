@@ -61,17 +61,23 @@ shrinkage_est <- function(resid, lambda = NULL, zero_mean = TRUE){
 #' If lambda is missing, it is computed automatically from the data.
 #'
 #' @param resid A numeric matrix of residuals.
-#' @param delta Numeric; the threshold value [0, 1] applied to the off-diagonal elements.
-#' @param lambda Numeric; the shrinkage intensity in [0, 1]. If missing, it is computed.
+#' @param delta Numeric; threshold value [0, 1] applied to off-diagonal elements.
+#' @param lambda Numeric; shrinkage intensity in [0, 1]. If missing, it is computed.
 #' @param zero_mean Logical; if TRUE, residuals are assumed to have zero mean. Default is TRUE.
+#' @param ensure_PD Logical; if TRUE, ensures the covariance matrix is positive definite.
 #'
 #' @return A list containing:
 #'   \item{lambda}{the optimal shrinkage intensity}
 #'   \item{cov.novelist}{the NOVELIST covariance matrix}
 #'
 #' @export
-novelist_est <- function(resid, delta, lambda = NULL, zero_mean = TRUE){
-
+novelist_est <- function(
+    resid,
+    delta,
+    lambda = NULL,
+    zero_mean = TRUE,
+    ensure_PD = TRUE
+){
   # Check input
   if (any(is.na(resid))) {
     print("NA presents in Residuals, function will omits rows with NA")
@@ -113,6 +119,15 @@ novelist_est <- function(resid, delta, lambda = NULL, zero_mean = TRUE){
   # Reconstruct the covariance matrix using the NOVELIST shrunk correlation matrix.
   D_half <- diag(sqrt(diag(covm)))  # diagonal matrix of standard deviations
   W <- D_half %*% R_novelist %*% D_half
+
+  # Ensure positive definiteness
+  if (ensure_PD) {
+    # Check if W is positive definite
+    if (any(eigen(W, only.values = TRUE)$values <= 1e-12)) {
+      W <- nearPD(W)$mat
+      # TODO: any better way?
+    }
+  }
 
   # cat("Lambda: ", lambda, "\n")
   return(list(

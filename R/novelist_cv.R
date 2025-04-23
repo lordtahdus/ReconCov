@@ -12,6 +12,7 @@
 #' @param reconcile_forecast .....
 #' @param zero_mean Logical, whether to treat the residuals as zero mean in the covariance.
 #' @param error_metric An error measure function for given actual and reconciled forecasts.
+#' @param ensure_PD Logical, whether to ensure the covariance matrix is positive definite.
 #'
 #' @return A list containing:
 #'   \item{delta}{optimal threshold}
@@ -35,6 +36,7 @@ novelist_cv <- function(
     # reconcile_forecast = NULL,
     zero_mean = TRUE,
     error_metric = function(actual, fc) mean((actual - fc)^2, na.rm = TRUE),
+    ensure_PD = TRUE,
     message = TRUE
 ) {
   T <- nrow(y)
@@ -72,11 +74,12 @@ novelist_cv <- function(
       cov_novelist <- novelist_est(
         resid     = train_resid,
         delta     = delta,
-        zero_mean = zero_mean
+        zero_mean = zero_mean,
+        ensure_PD = ensure_PD
       )$cov
 
       if (any(eigen(cov_novelist)$values <= 1e-8)) {
-        stop("The covariance matrix is not positive definite. Function will be fixed")
+        stop("The covariance matrix is not positive definite, cannot reconcile. Try ensure_PD = T")
       }
 
       recon_fc <- base_fc_next
