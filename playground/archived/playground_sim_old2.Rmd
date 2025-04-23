@@ -22,9 +22,9 @@ load_all()
 
 
 ```{r}
-groups <- c(2,2)
-T <-  50
-Tsplit <- 40
+groups <- c(2,2,2,2)
+T <-  100
+Tsplit <- 80
 diag_range <- c(0.5, 0.9)
 
 A <- generate_block_diag(
@@ -38,8 +38,6 @@ Sigma <- generate_cor(
 )
 
 bottom <- simulate_bottom_var(groups, T, intercept = 100, A=A, Sig=Sigma)
-
-# build_hierarchy(bottom$Y, bottom$groups)$hier_data
 ```
 
 
@@ -48,6 +46,7 @@ bottom <- simulate_bottom_var(groups, T, intercept = 100, A=A, Sig=Sigma)
 structure <- list(
   groups,
   as.list(seq(1,length(groups))),
+  list(c(1,2), c(3,4)),
   list(c(1,2))
 )
 S <- construct_S(
@@ -90,12 +89,12 @@ fc_slide <- fit_slide |>
   filter(time <= T) |>
   as_fable(response = "value", distribution = value)
 
-fc_slide |>
-  accuracy(hts, 
-           by = c("h", ".model", "series")) |>
-  ggplot(aes(x = h, y = RMSE)) +
-    geom_point() +
-    facet_wrap(~series)
+# fc_slide |>
+#   accuracy(hts, 
+#            by = c("h", ".model", "series")) |>
+#   ggplot(aes(x = h, y = RMSE)) +
+#     geom_point() +
+#     facet_wrap(~series)
 ```
 
 ```{r}
@@ -196,6 +195,15 @@ fc_full <- bind_rows(fc_slide, fc_new)
 results <- fc_full |>
   accuracy(hts, 
            by = c("h", ".model", "series")) 
+```
+
+```{r}
+results |> group_by(h, .model) |>
+  summarise(rmse = mean(RMSE)) |>
+  ggplot(aes(x = h, y = rmse, color = .model)) +
+    geom_line() +
+    labs(x = "Horizon", y = "RMSE") +
+    theme_minimal()
 ```
 
 
