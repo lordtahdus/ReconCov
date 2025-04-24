@@ -22,35 +22,44 @@ load_all()
 
 
 ```{r}
-groups <- c(6,6,6,6,6,6)
-T <-  50
-Tsplit <- 40
-diag_range <- c(0.2, 0.9)
+groups <- c(2,2)
+T <-  120
+Tsplit <- 100
+diag_range <- c(0.4, 0.8)
+offdiag_range <- c(-0.8, 0.8)
 
 A <- generate_block_diag(
   groups = groups,
-  diag_range = diag_range
+  diag_range = diag_range,
+  offdiag_range = offdiag_range
 )$A
 
-rho <- runif(length(groups), 0.2, 0.7)
+rho <- runif(length(groups), 0.6, 0.9)
 Sigma <- generate_cor(
   groups = groups,
   rho = rho,
-  delta = min(rho) * 0.5,
+  # delta = min(rho) * 0.5,
+  delta = 0.15,
+  # epsilon = (1-max(rho)) * 0.5,
+  epsilon = 0.15,
   eidim = length(groups)
 )
 Sigma <- convert_cor2cov(Sigma)
 Sigma <- flip_signs_mat(Sigma, flip_prob = 0.5, ensure_PD = T)
 Sigma %>% eigen(only.values = TRUE)
 
+V <- diag(x = sample(c(-1,1), size = sum(groups), replace = TRUE))
+Sigma <- V %*% Sigma %*% V
+
 bottom <- simulate_bottom_var(groups, T, intercept = 100, A=A, Sig=Sigma)
+plot(as.ts(bottom$Y))
 ```
 
 ```{r}
 structure <- list(
   groups,
   as.list(seq(1,length(groups))),
-  list(c(1,2,3,4,5,6))
+  list(c(1,2))
 )
 S <- construct_S(
   structure = structure,
@@ -60,7 +69,7 @@ S <- construct_S(
 ```
 
 ```{r}
-h <- 12
+h <- 8
 
 hts_mat <- bottom$Y %*% t(S)
 
@@ -106,7 +115,7 @@ deltas <- seq(0,1,by=0.05)
 
 
 # RUN CROSS VALIDATION
-system.time(
+# system.time(
 for (i in seq(T-Tsplit)) {
   message("Iteration: ", i)
   
@@ -187,7 +196,7 @@ for (i in seq(T-Tsplit)) {
   
   fc_new <- bind_rows(fc_new, shr_fc, n_fc)
 }
-)
+# )
 fc_new <- fc_new |>
     mutate(value = distributional::dist_normal(.mean, NA)) 
 
@@ -200,10 +209,10 @@ results <- fc_full |>
 
 ```{r}
 results |> group_by(h, .model) |>
-  summarise(rmse = mean(RMSE)) |>
-  ggplot(aes(x = h, y = rmse, color = .model)) +
+  summarise(mse = mean(RMSE^2)) |>
+  ggplot(aes(x = h, y = mse, color = .model)) +
     geom_line() +
-    labs(x = "Horizon", y = "RMSE") +
+    labs(x = "Horizon", y = "MSE") +
     theme_minimal()
 ```
 
