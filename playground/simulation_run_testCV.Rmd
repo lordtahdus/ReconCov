@@ -4,6 +4,12 @@ editor_options:
   chunk_output_type: console
 ---
 
+# Description
+
+This script evaluates test set using rolling-window cross-validation approach
+This is suitable only when we have just one data set
+
+
 ```{r}
 library(MASS)
 # library(matrixcalc)
@@ -21,6 +27,7 @@ load_all()
 ```
 
 
+# Parameters
 
 ```{r}
 groups <- c(2,2)
@@ -109,6 +116,8 @@ fc_slide <- fit_slide |>
 #     geom_point() +
 #     facet_wrap(~series)
 ```
+
+# CV
 
 ```{r}
 fc_new <- fc_slide[0, ] # empty tibble to store results
@@ -254,7 +263,7 @@ read.csv(
 ```
 
 
-## Parallel
+# Parallel
 
 ```{r}
 library(foreach)
