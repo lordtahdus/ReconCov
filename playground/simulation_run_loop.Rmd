@@ -1,0 +1,205 @@
+---
+title: "R Notebook"
+editor_options: 
+  chunk_output_type: console
+---
+
+
+# Description
+
+This script run simulation M times to compare methods, test set = h-step-ahead forecast error
+
+
+```{r}
+library(MASS)
+# library(matrixcalc)
+library(Matrix)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+
+library(tsibble)
+library(fabletools)
+library(fable)
+library(feasts)
+
+library(devtools)
+load_all()
+```
+
+
+# Parameters
+
+
+```{r}
+groups <- c(2,2)
+T <- 50
+h <- 5
+Tsplit <- T - h
+diag_range <- c(0.4, 0.8)
+offdiag_range <- c(-0.8, 0.8)
+
+A <- generate_block_diag(
+  groups = groups,
+  diag_range = diag_range,
+  offdiag_range = offdiag_range
+)$A
+
+rho <- runif(length(groups), 0.6, 0.9)
+Sigma <- generate_cor(
+  groups = groups,
+  rho = rho,
+  delta = min(rho) * 0.5,
+  # delta = 0.15,
+  epsilon = (1-max(rho)) * 0.5,
+  # epsilon = 0.15,
+  eidim = length(groups)
+)
+# convert to cov using random sd
+Sigma <- convert_cor2cov(Sigma)
+# flip signs
+V <- diag(x = sample(c(-1,1), size = sum(groups), replace = TRUE))
+Sigma <- V %*% Sigma %*% V
+
+Sigma %>% eigen(only.values = TRUE)
+```
+
+```{r}
+structure <- list(
+  groups,
+  as.list(seq(1,length(groups))),
+  list(c(1,2))
+)
+(S <- construct_S(
+  structure = structure,
+  sparse = FALSE,
+  ascending = FALSE
+))
+order_S <- rownames(S)
+```
+
+```{r}
+# generate bottom-up series
+bottom <- simulate_bottom_var(groups, T, intercept = 100, A=A, Sig=Sigma)
+plot(as.ts(bottom$Y))
+```
+
+```{r}
+hts_mat <- bottom$Y %*% t(S)
+
+hts <- hts_mat %>% 
+  as.data.frame() %>% 
+  mutate(time = seq(1, nrow(hts_mat))) %>% 
+  # select(time, everything()) %>% 
+  as_tsibble(index = time) %>% 
+  pivot_longer(
+    cols = -time,
+    names_to = "series",
+    values_to = "value"
+  )
+
+fit <- hts %>% 
+  filter(time <= Tsplit) %>%
+  model(
+    arima = ARIMA(value)
+  )
+
+fc <- fit |>
+  forecast(h = h) |>
+  as_fable(response = "value", distribution = value)
+```
+
+```{r}
+# Get data
+y <- hts_mat[1:Tsplit, order_S]
+actual <- hts_mat[(Tsplit + 1):T, order_S]
+
+y_hat <- fit %>% 
+  augment() %>% 
+  select(series, .fitted) %>%
+  pivot_wider(names_from = series, values_from = .fitted, names_sort = FALSE) %>% 
+  as_tibble() %>% 
+  select(-time) %>% 
+  as.matrix()
+
+base_fc <- fc %>% 
+  as_tibble() %>% 
+  select(series, .mean, time) %>%
+  pivot_wider(names_from = series, values_from = .mean) %>%
+  select(-time) %>% 
+  as.matrix()
+
+y_hat <- y_hat[, order_S]
+base_fc <- base_fc[, order_S]
+```
+
+```{r}
+# Get covariance estimates
+W_shr <- shrinkage_est(
+  y - y_hat
+)
+W_n <- novelist_cv(
+  y,
+  y_hat,
+  S,
+  window = round(Tsplit/2),
+  message = FALSE
+)
+
+# Reconcile
+recon_mint_shr <- reconcile_mint(base_fc, S, W_shr$cov)
+recon_mint_n <- reconcile_mint(base_fc, S, W_n$cov)
+recon_mint_sample <- reconcile_mint(
+  base_fc, S, compute_cov_matrix(y-y_hat, zero_mean = T)
+)
+```
+
+```{r}
+
+
+# Organise reconciled results into the fc_new object
+to_fbl <- function(recon_mint) {
+  as_tibble(recon_mint) %>% 
+  mutate(
+    h = row_number()
+  ) %>% 
+  pivot_longer(
+    cols = -h,
+    names_to = "series",
+    values_to = ".mean"
+  ) %>%
+  mutate(
+    .model = "mint_shrink",
+    time   = h + Tsplit,
+    value  = NA
+  ) %>%
+  select(series, .model, time, value, .mean) 
+  # %>% 
+  # as_tsibble(key=c(series, .model), index=time)
+  # as_fable(response = "value", distribution = value, index = time, key = c(series, .model))
+}
+
+fc_shr <- to_fbl(recon_mint_shr)
+fc_n <- to_fbl(recon_mint_n)
+fc_sample <- to_fbl(recon_mint_sample)
+
+fc_recon <- fc[0, ] # empty tibble to store results
+fc_recon <- bind_rows(
+    # fc_recon,
+    fc_shr,
+    fc_n,
+    fc_sample
+  )
+
+fc_recon %>% select(-value) %>% as_tsibble(key=c(series, .model), index=time)
+fc_recon %>% as_fable(response = "value", distribution = value, index = time, key = c(series, .model))
+
+fc_full <- bind_rows(fc, fc_recon %>% as_tsibble(key=c(series, .model), index=time)) 
+```
+
+
+
+
+
+
+
