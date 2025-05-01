@@ -30,12 +30,33 @@ load_all()
 
 # Parameters
 
+```{r}
+groups <- c(4,4,4,4)
+T <- 200
+h <- 10
+Tsplit <- T - h
+
+# structure <- list(
+#   groups,
+#   as.list(seq(1,length(groups))),
+#   list(c(1,2))
+# )
+structure <- list(
+  groups,
+  as.list(seq(1,length(groups))),
+  list(c(1,2), c(3,4)),
+  list(c(1,2))
+)
+
+(S <- construct_S(
+  structure = structure,
+  sparse = FALSE,
+  ascending = FALSE
+))
+order_S <- rownames(S)
+```
 
 ```{r}
-groups <- c(4,4)
-T <- 100
-h <- 5
-Tsplit <- T - h
 diag_range <- c(0.4, 0.8)
 offdiag_range <- c(-0.4, 0.4)
 
@@ -64,33 +85,14 @@ Sigma <- V %*% Sigma %*% V
 Sigma %>% eigen(only.values = TRUE)
 ```
 
-```{r}
-structure <- list(
-  groups,
-  as.list(seq(1,length(groups))),
-  list(c(1,2))
-)
-structure <- list(
-  c(2,2,2,2),
-  as.list(seq(1,4)),
-  list(c(1,2), c(3,4)),
-  list(c(1,2))
-)
 
-(S <- construct_S(
-  structure = structure,
-  sparse = FALSE,
-  ascending = FALSE
-))
-order_S <- rownames(S)
-```
 
 # Function
 
 ```{r}
 # generate bottom-up series
 bottom <- simulate_bottom_var(groups, T, intercept = 100, A=A, Sig=Sigma)
-plot(as.ts(bottom$Y))
+# plot(as.ts(bottom$Y))
 
 hts_mat <- bottom$Y %*% t(S)
 
@@ -117,9 +119,8 @@ fc <- fit |>
 
 fc <- fc %>% 
   mutate(h = time - Tsplit)
-```
 
-```{r}
+
 # Get data
 y <- hts_mat[1:Tsplit, order_S]
 actual <- hts_mat[(Tsplit + 1):T, order_S]
@@ -141,9 +142,7 @@ base_fc <- fc %>%
 
 y_hat <- y_hat[, order_S]
 base_fc <- base_fc[, order_S]
-```
 
-```{r}
 # Get covariance estimates
 W_shr <- shrinkage_est(
   y - y_hat
@@ -162,10 +161,6 @@ recon_mint_n <- reconcile_mint(base_fc, S, W_n$cov)
 recon_mint_sample <- reconcile_mint(
   base_fc, S, compute_cov_matrix(y-y_hat, zero_mean = T)
 )
-```
-
-```{r}
-
 
 # Organise reconciled results into the fc_new object
 to_fbl <- function(recon_mint, m_name) {
@@ -218,10 +213,14 @@ results |> group_by(h, .model) |>
     theme_minimal()
 
 results |> group_by(.model) |>
-  summarise(rmse = mean(RMSE))
+  summarise(mse = mean(RMSE^2))
 ```
 
 
+```{r}
+sqrt((actual - base_fc)^2) %>% mean()
+
+```
 
 
 
