@@ -222,10 +222,10 @@ generate_block_diag <- function(
         sr <- max(abs(eigen(block)$values))
         attempt <- attempt + 1
       }
+      if (attempt > 0 && message) message("Rescaled by 0.95^", attempt)
 
       # TODO: ensure max attempts
     }
-    if (attempt > 0 && message) message("Rescaled by 0.95^", attempt)
     blocks[[i]] <- block
   }
   # Combine blocks into single block diagonal A
