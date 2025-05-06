@@ -1,0 +1,64 @@
+---
+title: "R Notebook"
+editor_options: 
+  chunk_output_type: console
+---
+
+
+```{r}
+library(MASS)
+# library(matrixcalc)
+library(Matrix)
+library(tidyr)
+library(ggplot2)
+
+library(fabletools)
+library(fable)
+library(feasts)
+library(tsibble)
+library(dplyr)
+
+library(devtools)
+load_all()
+```
+
+
+# Read
+
+```{r}
+file <- "S4-2-1_100"
+path <- paste("sim_results/", file, ".rds", sep = "")
+results <- readRDS(path)
+
+MSE <- results$MSE
+W_shr <- results$W_shr
+W_n <- results$W_n
+```
+
+# Inspect
+
+```{r}
+MSE_ts <- imap_dfr(MSE, function(mat, model_name) {
+    as_tibble(mat) %>%
+      mutate(h = row_number()) %>%
+      pivot_longer(cols = -h, names_to = "series", values_to = "MSE") %>%
+      mutate(
+        .model = model_name,
+      ) %>%
+      select(.model, series, h, MSE)
+  }) %>%
+  as_tsibble(key = c(.model, series), index = h)
+
+MSE_ts |> group_by(.model) |> index_by(h) |>
+  summarise(mse = mean(MSE)) |>
+  ggplot(aes(x = h, y = mse, color = .model)) +
+    geom_line() +
+    labs(x = "Horizon", y = "MSE") +
+    theme_minimal()
+
+```
+
+
+
+
+
