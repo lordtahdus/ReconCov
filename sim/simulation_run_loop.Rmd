@@ -101,6 +101,7 @@ run <- function() {
   
   # -------------------------------------------------
   # Generate parameters for simulating bottom series
+  
   A <- generate_block_diag(
     groups = groups,
     diag_range = diag_range,
@@ -126,7 +127,6 @@ run <- function() {
   # -------------------------------------------------
   # generate bottom-up series and transforming data
   bottom <- simulate_bottom_var(groups, T, intercept = 100, A=A, Sig=Sigma)
-
   hts_mat <- bottom$Y %*% t(S)
   
   hts <- hts_mat %>% 
@@ -192,49 +192,15 @@ run <- function() {
   # Reconcile
   recon_mint_shr <- reconcile_mint(base_fc, S, W_shr$cov)
   recon_mint_n <- reconcile_mint(base_fc, S, W_n$cov)
-  recon_mint_sample <- reconcile_mint(
-    base_fc, S, compute_cov_matrix(y-y_hat, zero_mean = T)
-  )
   
-  # Organise reconciled results into the fc_new object
-  # to_fbl <- function(recon_mint, m_name) {
-  #   as_tibble(recon_mint) %>% 
-  #   mutate(
-  #     h = row_number()
-  #   ) %>% 
-  #   pivot_longer(
-  #     cols = -h,
-  #     names_to = "series",
-  #     values_to = ".mean"
-  #   ) %>%
-  #   mutate(
-  #     # name of the model
-  #     .model = m_name,
-  #     time   = h + Tsplit,
-  #     value  = NA
-  #   ) %>%
-  #   select(series, .model, h, time, value, .mean)
-  # }
-  # 
-  # fc_shr <- to_fbl(recon_mint_shr, "mint_shrink")
-  # fc_n <- to_fbl(recon_mint_n, "mint_novelist")
-  # fc_sample <- to_fbl(recon_mint_sample, "mint_sample")
-  # 
-  # fc_recon <- fc[0, ] # empty tibble to store results
-  # fc_recon <- bind_rows(
-  #     fc_recon,
-  #     fc_shr,
-  #     fc_n,
-  #     fc_sample
-  #   ) %>% 
-  #   mutate(
-  #     value = distributional::dist_normal(.mean, NA)
-  #   )
-  # 
-  # fc_full <- bind_rows(fc, fc_recon)
-    # fc_full <- fc_full %>% 
-    #   mutate(value = distributional::dist_normal(.mean, NA))
+  sample_cov <- compute_cov_matrix(y - y_hat, zero_mean = T)
+  if (eigen(sample_cov)$values[1] < 1e-10) {
+    cat("Sample covariance for mint_sample is singular, using nearPD\n")
+    sample_cov <- nearPD(sample_cov)
+  }
+  recon_mint_sample <- reconcile_mint(base_fc, S, sample_cov)
   
+
   SSE <- list(
     base = ((actual - base_fc)^2),
     mint_shr = ((actual - recon_mint_shr)^2),
@@ -254,7 +220,7 @@ run <- function() {
 # -- RUN --
 
 ```{r}
-M <- 200
+M <- 300
 
 # ------------------------------------------------
 model_names <- c("base", "mint_shr", "mint_n", "mint_sample")
@@ -269,7 +235,7 @@ W_n_store   <- matrix(0, M, 2,
                       dimnames = list(NULL, c("lambda", "delta")))
 # ------------------------------------------------
 
-for(i in seq_len(M)[176:200]) {
+for(i in seq_len(M)[175:300]) {
   cat("Iteration ", i, "\n")
   
   res <- run()
