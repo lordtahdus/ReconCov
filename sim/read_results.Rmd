@@ -20,6 +20,8 @@ library(dplyr)
 
 library(devtools)
 load_all()
+
+library(purrr)
 ```
 
 
@@ -38,7 +40,8 @@ W_n <- results$W_n
 # Inspect
 
 ```{r}
-MSE_ts <- imap_dfr(MSE, function(mat, model_name) {
+list_MSE_to_ts <- function(MSE) {
+  imap_dfr(MSE, function(mat, model_name) {
     as_tibble(mat) %>%
       mutate(h = row_number()) %>%
       pivot_longer(cols = -h, names_to = "series", values_to = "MSE") %>%
@@ -48,6 +51,9 @@ MSE_ts <- imap_dfr(MSE, function(mat, model_name) {
       select(.model, series, h, MSE)
   }) %>%
   as_tsibble(key = c(.model, series), index = h)
+}
+
+MSE_ts <- list_MSE_to_ts(results$MSE)
 
 MSE_ts |> group_by(.model) |> index_by(h) |>
   summarise(mse = mean(MSE)) |>
@@ -85,6 +91,28 @@ plot(
   results$W_n[,1][cond],
   results$W_n[,2][cond]
 )
+```
+
+# Compare between 2 simulations
+
+```{r}
+MSE1 <- list_MSE_to_ts(sim1$MSE)
+MSE2 <- list_MSE_to_ts(sim2$MSE)
+
+MSE1 |> group_by(.model) |> index_by(h) |>
+  summarise(mse = mean(MSE)) |>
+  ggplot(aes(x = h, y = mse, color = .model)) +
+    geom_line() +
+    labs(x = "Horizon", y = "MSE") +
+    theme_minimal()
+
+MSE2 |> group_by(.model) |> index_by(h) |>
+  summarise(mse = mean(MSE)) |>
+  ggplot(aes(x = h, y = mse, color = .model)) +
+    geom_line() +
+    labs(x = "Horizon", y = "MSE") +
+    theme_minimal()
+
 ```
 
 

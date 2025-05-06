@@ -16,24 +16,25 @@ load_all()
 
 # Parameters -----------------------------------
 
-groups <- c(2,2)
+# groups <- c(2,2)
 # groups <- c(4,4,4,4)
+groups <- c(6,6,6,6,6,6)
 
-T <- 110
-h <- 10
+T <- 320
+h <- 20
 Tsplit <- T - h
 
-structure <- list(
-  groups,
-  as.list(seq(1,length(groups))),
-  list(c(1,2))
-)
 # structure <- list(
 #   groups,
 #   as.list(seq(1,length(groups))),
-#   list(c(1,2), c(3,4)),
 #   list(c(1,2))
 # )
+structure <- list(
+  groups,
+  as.list(seq(1,length(groups))),
+  list(c(1,2,3), c(4,5,6)),
+  list(c(1,2))
+)
 
 (S <- construct_S(
   structure = structure,
@@ -43,8 +44,8 @@ structure <- list(
 order_S <- rownames(S)
 
 # ranges for coefs in VAR
-diag_range <- c(0.4, 0.9)
-offdiag_range <- c(-0.2, 0.2)
+diag_range <- c(0.4, 0.8)
+offdiag_range <- c(-0.4, 0.4)
 
 
 
@@ -177,7 +178,7 @@ run <- function(message = F) {
 library(future.apply)
 library(progressr)
 
-M <- 100
+M <- 500
 
 
 model_names <- c("base", "mint_shr", "mint_n", "mint_sample")
@@ -196,7 +197,7 @@ handlers("txtprogressbar")  # or "progress" for a fancier bar
 
 plan(multisession, workers = parallel::detectCores() - 1)
 
-res_list <- future_lapply(seq_len(M), function(i) run(), future.seed=TRUE)
+# res_list <- future_lapply(seq_len(M), function(i) run(), future.seed=TRUE)
 
 # Enable progress bar
 with_progress({
@@ -211,10 +212,10 @@ with_progress({
   )
 })
 
-SSE_cum     <- Reduce(function(acc, res) Map(`+`, acc, res$SSE),
+SSE_cum <- Reduce(function(acc, res) Map(`+`, acc, res$SSE),
                       res_list, init = SSE_cum)
 W_shr_store <- sapply(res_list, `[[`, "W_shr")
-W_n_store   <- t(sapply(res_list, `[[`, "W_n"))
+W_n_store <- t(sapply(res_list, `[[`, "W_n"))
 
 # # SEQUENTIAL
 # W_shr_store <- numeric(M)
@@ -251,6 +252,8 @@ plan(sequential)
 
 # Combine all your outputs into a named list
 sim_results <- list(
+  groups = groups,
+  S      = S,
   MSE    = MSE,    # or averaged MSE
   W_shr  = W_shr_store,       # can be a list of matrices or one matrix
   W_n    = W_n_store          # same
