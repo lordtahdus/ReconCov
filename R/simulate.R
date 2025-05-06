@@ -209,11 +209,11 @@ generate_block_diag <- function(
     if (stationary) {
       # Ensure stability by decreasing the scale until spectral radius < 1 or attempts done
       sr <- max(abs(eigen(block)$values))
+      attempt <- 0
       # Warning
       if (sr >= 0.99 && message) {
-        message("Simulated block matrix is unstable (not stationary).",
-                "Attempt to rescale of off-diagonal elements.")
-        attempt <- 0
+        message("generate_block_diag(): \n",
+                "Simulated ", i,"-th block matrix is unstable (not stationary).")
       }
       while(sr >= 0.99) {
         # reduce the off diag portion
@@ -223,10 +223,9 @@ generate_block_diag <- function(
         attempt <- attempt + 1
       }
 
-      if (attempt > 0 && message) message("Rescaled by 0.95^", attempt)
-
       # TODO: ensure max attempts
     }
+    if (attempt > 0 && message) message("Rescaled by 0.95^", attempt)
     blocks[[i]] <- block
   }
   # Combine blocks into single block diagonal A
