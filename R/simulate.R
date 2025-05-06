@@ -213,13 +213,18 @@ generate_block_diag <- function(
       if (sr >= 0.99 && message) {
         message("Simulated block matrix is unstable (not stationary).",
                 "Attempt to rescale of off-diagonal elements.")
+        attempt <- 0
       }
       while(sr >= 0.99) {
         # reduce the off diag portion
         offdiag_mat <- 0.95 * offdiag_mat
         block <- diag(diag_vals) + offdiag_mat
         sr <- max(abs(eigen(block)$values))
+        attempt <- attempt + 1
       }
+
+      if (attempt > 0 && message) message("Rescaled by 0.95^", attempt)
+
       # TODO: ensure max attempts
     }
     blocks[[i]] <- block
