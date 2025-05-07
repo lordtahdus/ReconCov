@@ -221,6 +221,13 @@ MSE <- lapply(SSE_cum, function(mat) mat / M)
 plan(sequential) # Reset to sequential
 
 
+# Warning message:
+# In sqrt(diag(best$var.coef)) : NaNs produced
+#
+# This happens in fitting ARIMA, when the sum of AR coefs is very
+# close to 1, causing difficulties in computing the standard errors.
+
+
 ## benchmark ---------------------
 # W_shr_store <- numeric(M)
 # W_n_store   <- matrix(0, M, 2,
