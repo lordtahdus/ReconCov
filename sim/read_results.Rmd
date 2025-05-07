@@ -6,15 +6,15 @@ editor_options:
 
 
 ```{r libs}
-library(MASS)
+# library(MASS)
 # library(matrixcalc)
-library(Matrix)
+# library(Matrix)
 library(tidyr)
 library(ggplot2)
 
-library(fabletools)
-library(fable)
-library(feasts)
+# library(fabletools)
+# library(fable)
+# library(feasts)
 library(tsibble)
 library(dplyr)
 
@@ -40,8 +40,8 @@ W_n <- results$W_n
 # Inspect
 
 ```{r}
-list_MSE_to_ts <- function(MSE) {
-  imap_dfr(MSE, function(mat, model_name) {
+transfrom_sim_MSE <- function(MSE, to_ts = T) {
+  df <- imap_dfr(MSE, function(mat, model_name) {
     as_tibble(mat) %>%
       mutate(h = row_number()) %>%
       pivot_longer(cols = -h, names_to = "series", values_to = "MSE") %>%
@@ -49,8 +49,13 @@ list_MSE_to_ts <- function(MSE) {
         .model = model_name,
       ) %>%
       select(.model, series, h, MSE)
-  }) %>%
-  as_tsibble(key = c(.model, series), index = h)
+  })
+  if (to_ts) {
+    return(
+      as_tsibble(key = c(.model, series), index = h)
+    )
+  }
+  return(df)
 }
 
 MSE_ts <- list_MSE_to_ts(results$MSE)
@@ -66,8 +71,7 @@ MSE_ts |> group_by(.model) |> index_by(h) |>
 
 ```{r}
 # params from shrinkage and novelist
-
-results$W_shr[results$W_shr == results$W_n[,1]] %>% length()
+results <- sim2
 
 plot(
   results$W_shr,
@@ -76,17 +80,19 @@ plot(
 
 # filter diff
 cond <- results$W_shr != results$W_n[,1]
-cond <- results$W_shr != results$W_n[,1] & results$W_n[,1] < 0.3
+# cond <- results$W_shr != results$W_n[,1] & results$W_n[,1] < 0.3
+
+sum(!cond)/length(results$W_shr) # proportion of similarity in lambda
 
 # lambdas given thresholded != identity
 plot(
   results$W_shr[cond],
   results$W_n[,1][cond]
-)
-abline(a = 0, b = 1, col = "red", lty = 1)
+); abline(a = 0, b = 1, col = "red", lty = 1)
 
+# lambda vs delta NOVELIST
 plot(results$W_n)
-# lambda vs delta NOVELIST given thresholded != identity
+# given thresholded != identity
 plot(
   results$W_n[,1][cond],
   results$W_n[,2][cond]
@@ -96,39 +102,42 @@ plot(
 # Compare between 2 simulations
 
 ```{r}
-MSE1 <- list_MSE_to_ts(sim1$MSE)
-MSE2 <- list_MSE_to_ts(sim2$MSE)
+MSE1 <- transfrom_sim_MSE(sim1$MSE, F)
+MSE2 <- transfrom_sim_MSE(sim2$MSE, F)
 
-MSE1 |> group_by(.model) |> index_by(h) |>
+hier_level <- MSE1$series |>
+  substring(1, 1) |>
+  unique() |> sort(decreasing = TRUE)
+
+MSE_full <- bind_rows(MSE1, MSE2, .id = "id") |>
+  mutate(
+    level = match(substring(series,1,1), hier_level) 
+  )
+
+# plot by h
+MSE_full |> group_by(id, .model, h) |>
   summarise(mse = mean(MSE)) |>
   ggplot(aes(x = h, y = mse, color = .model)) +
     geom_line() +
+    facet_wrap(~id) +
     labs(x = "Horizon", y = "MSE") +
     theme_minimal()
 
-MSE2 |> group_by(.model) |> index_by(h) |>
+# plot by h and hier-level
+MSE_full |> 
+  group_by(id, .model, h, level) |>
   summarise(mse = mean(MSE)) |>
+  filter(h <= 10) |>
+  mutate(facet_id = paste0(id, level)) |>
   ggplot(aes(x = h, y = mse, color = .model)) +
     geom_line() +
+    facet_wrap(~ facet_id, nrow=2, scales = "free_y") +
     labs(x = "Horizon", y = "MSE") +
     theme_minimal()
 
+  
 ```
 
-
-```{r}
-temp <- temp1
-for (i in 1:4){
-  temp$MSE[[i]] <- (temp$MSE[[i]] * 200 + temp2$MSE[[i]]*300) / 500
-}
-
-temp$W_shr <- c(temp$W_shr, temp2$W_shr)
-temp$W_n <- rbind(temp$W_n, temp2$W_n)
-saveRDS(
-  temp, 
-  file = "sim/sim_results/S16-4-2-1_T100_M500.rds"
-)
-```
 
 
 
