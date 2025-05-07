@@ -50,13 +50,10 @@ offdiag_range <- c(-0.4, 0.4)
 
 
 # Function -----------------------------------
-
-
 run <- function(message = F) {
 
-  # -------------------------------------------------
+  # # # # # #
   # Generate parameters for simulating bottom series
-
   A <- generate_block_diag(
     groups = groups,
     diag_range = diag_range,
@@ -80,7 +77,7 @@ run <- function(message = F) {
   V <- diag(x = sample(c(-1,1), size = sum(groups), replace = TRUE))
   Sigma <- V %*% Sigma %*% V
 
-  # -------------------------------------------------
+  # # # # # #
   # generate bottom-up series and transforming data
   bottom <- simulate_bottom_var(groups, T, intercept = 100, A=A, Sig=Sigma)
   hts_mat <- bottom$Y %*% t(S)
@@ -96,7 +93,7 @@ run <- function(message = F) {
       values_to = "value"
     )
 
-  # -------------------------------------------------
+  # # # # # #
   # Fit and base forecasts
   fit <- hts %>%
     filter(time <= Tsplit) %>%
@@ -131,7 +128,7 @@ run <- function(message = F) {
   y_hat <- y_hat[, order_S]
   base_fc <- base_fc[, order_S]
 
-  # -------------------------------------------------
+  # # # # # #
   # Get covariance estimates
   W_shr <- shrinkage_est(
     y - y_hat
@@ -144,7 +141,7 @@ run <- function(message = F) {
     message = FALSE
   )
 
-  # --------------------------------------------------
+  # # # # # #
   # Reconcile
   recon_mint_shr <- reconcile_mint(base_fc, S, W_shr$cov)
   recon_mint_n <- reconcile_mint(base_fc, S, W_n$cov)
@@ -156,7 +153,8 @@ run <- function(message = F) {
   }
   recon_mint_sample <- reconcile_mint(base_fc, S, sample_cov)
 
-
+  # # # # # #
+  # Return
   SSE <- list(
     base = ((actual - base_fc)^2),
     mint_shr = ((actual - recon_mint_shr)^2),
@@ -170,8 +168,6 @@ run <- function(message = F) {
     W_n = c(W_n$lambda, W_n$delta)
   )
 }
-
-
 
 
 # ---- PARALELL ----------------------------------
@@ -191,15 +187,14 @@ SSE_cum <- setNames(
 
 # PARALLEL
 
-# Setup progress bar handler
-handlers(global = TRUE)
+handlers(global = TRUE) # Setup progress bar handler
 handlers("txtprogressbar")  # or "progress" for a fancier bar
 
-plan(multisession, workers = parallel::detectCores() - 1)
+plan(multisession, workers = parallel::detectCores() - 2)
 
 # res_list <- future_lapply(seq_len(M), function(i) run(), future.seed=TRUE)
 
-# Enable progress bar
+# parallel with progress bar
 with_progress({
   p <- progressor(along = 1:M)  # auto sets steps = length
 
@@ -212,12 +207,21 @@ with_progress({
   )
 })
 
+# check orders of results
+res_list[[1]]$SSE |> names() == SSE_cum |> names()
+
+# wrangle
 SSE_cum <- Reduce(function(acc, res) Map(`+`, acc, res$SSE),
                       res_list, init = SSE_cum)
 W_shr_store <- sapply(res_list, `[[`, "W_shr")
 W_n_store <- t(sapply(res_list, `[[`, "W_n"))
 
-# # SEQUENTIAL
+MSE <- lapply(SSE_cum, function(mat) mat / M)
+
+plan(sequential) # Reset to sequential
+
+
+## benchmark ---------------------
 # W_shr_store <- numeric(M)
 # W_n_store   <- matrix(0, M, 2,
 #                       dimnames = list(NULL, c("lambda", "delta")))
@@ -241,10 +245,6 @@ W_n_store <- t(sapply(res_list, `[[`, "W_n"))
 #   check = FALSE
 # )
 
-MSE <- lapply(SSE_cum, function(mat) mat / M)
-
-
-plan(sequential)
 
 
 # Save --------------------------------
@@ -273,7 +273,7 @@ file <- paste0(
 saveRDS(sim_results, file = paste("sim/sim_results/", file, ".rds", sep = ""))
 
 
-## Inspect
+# Inspect --------------------
 
 
 library(purrr)
