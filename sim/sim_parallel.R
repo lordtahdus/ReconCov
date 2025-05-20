@@ -302,10 +302,13 @@ for (i in 2:length(structure)) {
 file <- paste0(
   S_string,
   "_T", T-h,
-  "_M", M,
-  "_par"
+  "_M", M
 )
 saveRDS(sim_results, file = paste("sim/sim_results/", file, ".rds", sep = ""))
+
+error_list <- map(res_list, "SSE")
+saveRDS(sim_results, file = paste("sim/sim_results/", file, "_errorlist.rds", sep = ""))
+
 
 
 # Inspect --------------------

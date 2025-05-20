@@ -97,6 +97,9 @@ plot(
   results$W_n[,1][cond],
   results$W_n[,2][cond]
 )
+
+hist(results$W_n[,2])
+hist(results$W_n[,2][cond])
 ```
 
 # Compare between 2 simulations
