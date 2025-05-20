@@ -16,25 +16,25 @@ load_all()
 
 # Parameters -----------------------------------
 
-# groups <- c(2,2)
+groups <- c(2,2)
 # groups <- c(4,4,4,4)
-groups <- c(6,6,6,6,6,6)
+# groups <- c(6,6,6,6,6,6)
 
-T <- 320
-h <- 20
+T <- 116
+h <- 16
 Tsplit <- T - h
 
-# structure <- list(
-#   groups,
-#   as.list(seq(1,length(groups))),
-#   list(c(1,2))
-# )
 structure <- list(
   groups,
   as.list(seq(1,length(groups))),
-  list(c(1,2,3), c(4,5,6)),
   list(c(1,2))
 )
+# structure <- list(
+#   groups,
+#   as.list(seq(1,length(groups))),
+#   list(c(1,2,3), c(4,5,6)),
+#   list(c(1,2))
+# )
 
 (S <- construct_S(
   structure = structure,
@@ -48,34 +48,60 @@ diag_range <- c(0.4, 0.8)
 offdiag_range <- c(-0.4, 0.4)
 
 
+A <- generate_block_diag(
+  groups = groups,
+  diag_range = diag_range,
+  offdiag_range = offdiag_range,
+  message = message,
+)$A
+
+rho <- runif(length(groups), 0.6, 0.9)
+Sigma <- generate_cor(
+  groups = groups,
+  rho = rho,
+  delta = min(rho) * 0.5,
+  # delta = 0.15,
+  epsilon = (1-max(rho)) * 0.5,
+  # epsilon = 0.15,
+  eidim = length(groups)
+)
+# convert to cov using random sd
+Sigma <- convert_cor2cov(Sigma)
+# flip signs
+V <- diag(x = sample(c(-1,1), size = sum(groups), replace = TRUE))
+Sigma <- V %*% Sigma %*% V
+
 
 # Function -----------------------------------
-run <- function(message = F) {
+run <- function(A = NULL, Sigma = NULL, message = F) {
 
   # # # # # #
   # Generate parameters for simulating bottom series
-  A <- generate_block_diag(
-    groups = groups,
-    diag_range = diag_range,
-    offdiag_range = offdiag_range,
-    message = message,
-  )$A
+  # if (is.null(A) & is.null(Sigma)) {
+  #   A <- generate_block_diag(
+  #     groups = groups,
+  #     diag_range = diag_range,
+  #     offdiag_range = offdiag_range,
+  #     message = message,
+  #   )$A
+  #
+  #   rho <- runif(length(groups), 0.6, 0.9)
+  #   Sigma <- generate_cor(
+  #     groups = groups,
+  #     rho = rho,
+  #     delta = min(rho) * 0.5,
+  #     # delta = 0.15,
+  #     epsilon = (1-max(rho)) * 0.5,
+  #     # epsilon = 0.15,
+  #     eidim = length(groups)
+  #   )
+  #   # convert to cov using random sd
+  #   Sigma <- convert_cor2cov(Sigma)
+  #   # flip signs
+  #   V <- diag(x = sample(c(-1,1), size = sum(groups), replace = TRUE))
+  #   Sigma <- V %*% Sigma %*% V
+  # }
 
-  rho <- runif(length(groups), 0.6, 0.9)
-  Sigma <- generate_cor(
-    groups = groups,
-    rho = rho,
-    delta = min(rho) * 0.5,
-    # delta = 0.15,
-    epsilon = (1-max(rho)) * 0.5,
-    # epsilon = 0.15,
-    eidim = length(groups)
-  )
-  # convert to cov using random sd
-  Sigma <- convert_cor2cov(Sigma)
-  # flip signs
-  V <- diag(x = sample(c(-1,1), size = sum(groups), replace = TRUE))
-  Sigma <- V %*% Sigma %*% V
 
   # # # # # #
   # generate bottom-up series and transforming data
@@ -174,7 +200,7 @@ run <- function(message = F) {
 library(future.apply)
 library(progressr)
 
-M <- 500
+M <- 10000
 
 
 model_names <- c("base", "mint_shr", "mint_n", "mint_sample")
@@ -201,7 +227,7 @@ with_progress({
   res_list <- future_lapply(
     1:M, function(i) {
       p(message = sprintf("Sim %d", i))  # advances safely
-      run()
+      run(A, Sigma)
     },
     future.seed=TRUE
   )
@@ -236,7 +262,7 @@ plan(sequential) # Reset to sequential
 #   for(i in seq_len(M)) {
 #     cat("Iteration ", i, "\n")
 #
-#     res <- run()
+#     res <- run(A, Sigma)
 #     # add up the SSE matrices
 #     SSE_cum <- Map(`+`, SSE_cum, res$SSE)
 #     # store the parameters
@@ -244,9 +270,9 @@ plan(sequential) # Reset to sequential
 #     W_n_store[i, ]         <- res$W_n
 #   }
 # }
-
+#
 # bench::mark(
-#   future_lapply(seq_len(M), function(i) run(), future.seed=TRUE),
+#   future_lapply(seq_len(M), function(i) run(A, Sigma), future.seed=TRUE),
 #   run_sequential(),
 #   iterations = 1,
 #   check = FALSE
@@ -261,6 +287,8 @@ plan(sequential) # Reset to sequential
 sim_results <- list(
   groups = groups,
   S      = S,
+  A      = A,
+  Sigma  = Sigma,
   MSE    = MSE,    # or averaged MSE
   W_shr  = W_shr_store,       # can be a list of matrices or one matrix
   W_n    = W_n_store          # same
