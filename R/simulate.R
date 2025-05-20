@@ -211,11 +211,11 @@ generate_block_diag <- function(
       sr <- max(abs(eigen(block)$values))
       attempt <- 0
       # Warning
-      if (sr >= 0.99 && message) {
+      if (sr >= 0.95 && message) {
         message("generate_block_diag(): \n",
                 "Simulated ", i,"-th block matrix is unstable (not stationary).")
       }
-      while(sr >= 0.99) {
+      while(sr >= 0.95) {
         # reduce the off diag portion
         offdiag_mat <- 0.95 * offdiag_mat
         block <- diag(diag_vals) + offdiag_mat
