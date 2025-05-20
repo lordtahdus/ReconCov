@@ -117,6 +117,7 @@ MSE_full <- bind_rows(MSE1, MSE2, .id = "id") |>
 # plot by h
 MSE_full |> group_by(id, .model, h) |>
   summarise(mse = mean(MSE)) |>
+  filter(h <=16) |>
   ggplot(aes(x = h, y = mse, color = .model)) +
     geom_line() +
     facet_wrap(~id) +
@@ -134,10 +135,33 @@ MSE_full |>
     facet_wrap(~ facet_id, nrow=2, scales = "free_y") +
     labs(x = "Horizon", y = "MSE") +
     theme_minimal()
-
+# plot by h and hier-level
   
 ```
 
 
+```{r}
+# pct change
+
+MSE_full |>
+  group_by(id, series, h) |>
+  mutate(
+    base_MSE = MSE[.model == "base"]
+  ) |>
+  ungroup() |>
+  group_by(id, .model, h) |>
+  summarise(
+    MSE = mean(MSE),
+    base_MSE = mean(base_MSE),
+    pct_change = (MSE - base_MSE) / base_MSE * 100
+  ) |>
+  mutate(id = ifelse(id == 1, "T = 100", "T = 300")) |>
+  filter(h <=16) |>
+  ggplot(aes(x = h, y = pct_change, color = .model)) +
+    geom_line() +
+    facet_wrap(~id) +
+    labs(x = "Horizon", y = "% relative improvements in MSE") +
+    theme_minimal()
+```
 
 
