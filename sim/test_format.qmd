@@ -1,0 +1,292 @@
+---
+title: "test"
+format: pdf
+editor: visual
+execute:
+  echo: false
+  warning: false
+  message: false
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r libs}
+# library(MASS)
+# library(matrixcalc)
+# library(Matrix)
+library(tidyr)
+library(ggplot2)
+
+# library(fabletools)
+# library(fable)
+# library(feasts)
+library(tsibble)
+library(dplyr)
+library(purrr)
+library(kableExtra)
+library(knitr)
+library(devtools)
+load_all()
+
+```
+
+
+```{r}
+category <- c('population', 'population', 'sample', 'sample', 'population', 'population', 'sample', 'sample')
+gender <- c('female', 'male', 'female', 'male', 'female', 'male', 'female', 'male')
+n <- c(12,20,14,14,11,21,13,15)
+frequency <- c(0.375, 0.625, 0.5, 0.5, 0.34375, 0.65625, 0.4642857, 0.5357143)
+cohort <- c('one', 'one', 'one', 'one', 'two', 'two', 'two', 'two')
+
+df <- data.frame(category, gender, n, frequency, cohort)
+```
+
+```{r}
+# df %>%
+#   pivot_wider(id_cols = cohort, names_from = c(category, gender), values_from = c(frequency, n)) %>%
+#   select(cohort, frequency_population_male, frequency_sample_male, frequency_population_female, frequency_sample_female,
+#          n_population_male, n_sample_male, n_population_female, n_sample_female) %>%
+#   mutate_if(is.numeric, format, digits=2) %>%
+#   kable(align = rep('c', 9), col.names = c("Cohort", rep(c("Population", "Sample"), 4))) %>%
+#   kable_classic() %>%
+#   add_header_above(c(" ", "Male" = 2, "Female" = 2, "Male" = 2, "Female" = 2)) %>%
+#   add_header_above(c(" ", "Frequency" = 4, "N" = 4))
+```
+
+```{r}
+df2 <- df
+
+df$country <- "1"
+df2$country <- "2"
+
+df_full <- bind_rows(df, df2)
+
+df_full <- df_full %>%
+  pivot_wider(id_cols = c(country, cohort), names_from = c(category, gender), values_from = c(frequency, n)) %>%
+  select(country, cohort,
+         frequency_population_male, frequency_sample_male, frequency_population_female, frequency_sample_female,
+         n_population_male, n_sample_male, n_population_female, n_sample_female) %>%
+  mutate_if(is.numeric, format, digits = 2)
+
+# Find row indices for each group
+row_indices <- split(1:nrow(df_full), df_full$country)
+
+# Drop `country` column for the kable display
+df_kable <- df_full %>% select(-country)
+
+# Start table
+k <- df_kable %>%
+  kable(
+    align = rep('c', 9),
+    col.names = c("Cohort", rep(c("Population", "Sample"), 4)),
+    caption = "Summary statistics grouped by country",
+    escape = FALSE,
+    booktabs = TRUE
+  ) %>%
+  kable_classic() %>%
+  add_header_above(c(" ", "Male" = 2, "Female" = 2, "Male" = 2, "Female" = 2)) %>%
+  add_header_above(c(" ", "Frequency" = 4, "N" = 4))
+
+# Apply pack_rows for each country
+for (c in names(row_indices)) {
+  rows <- row_indices[[c]]
+  k <- k %>% pack_rows(paste("Country", c), rows[1], rows[length(rows)])
+}
+
+k
+
+```
+
+
+```{r}
+sim1 <- readRDS("D:/Github/ReconCov/sim/sim_results/S36-6-2-1_T100_M500_par.rds")
+sim2 <- readRDS("D:/Github/ReconCov/sim/sim_results/S36-6-2-1_T300_M500_par.rds")
+
+transfrom_sim_MSE <- function(MSE, to_ts = T) {
+  df <- imap_dfr(MSE, function(mat, model_name) {
+    as_tibble(mat) %>%
+      mutate(h = row_number()) %>%
+      pivot_longer(cols = -h, names_to = "series", values_to = "MSE") %>%
+      mutate(
+        .model = model_name,
+      ) %>%
+      select(.model, series, h, MSE)
+  })
+  if (to_ts) {
+    return(
+      as_tsibble(key = c(.model, series), index = h)
+    )
+  }
+  return(df)
+}
+```
+
+```{r}
+MSE1 <- transfrom_sim_MSE(sim1$MSE, F)
+MSE2 <- transfrom_sim_MSE(sim2$MSE, F)
+
+hier_level <- MSE1$series |>
+  substring(1, 1) |>
+  unique() |> sort(decreasing = TRUE)
+
+MSE_full <- bind_rows(MSE1, MSE2, .id = "id") |>
+  mutate(
+    level = match(substring(series,1,1), hier_level) 
+  )
+
+MSE_full |>
+  group_by(id, series, h) |>
+  mutate(
+    base_MSE = MSE[.model == "base"],
+    pct_change = ifelse(.model == "base", 
+                        base_MSE, 
+                        (MSE - base_MSE) / base_MSE * 100)
+  ) |>
+  ungroup()
+```
+
+```{r}
+group_defs <- tibble(
+  h_group = c("h=1",  "h=1-8",   "h=1-16"),
+  h_max   = c(1,      8,         16)
+)
+
+MSE_tidy <- MSE_full %>%
+  # filter(h<=16) %>%
+  crossing(group_defs) %>%    # gives every row all 3 candidate groups
+  filter(h <= h_max) %>%      # keep only the overlapping ones
+  # filter(h>15)
+  group_by(id, .model, level, h_group) %>%
+  summarise(mean_MSE = mean(MSE), .groups = "drop") %>%
+  pivot_wider(id_cols = c(level, .model), names_from = c(id, h_group), values_from = mean_MSE) %>%
+  arrange(level, .model)
+
+row_levels <- MSE_tidy$level
+MSE_display <- MSE_tidy %>% select(-level)
+
+# MSE_tidy %>%
+#   mutate(across(where(is.numeric), ~formatC(.x, digits = 1, format = "f"))) %>%
+#   kable(
+#     # format = "latex", 
+#     booktabs = TRUE, 
+#     longtable = TRUE,
+#     align = c("c", "c", rep("c", 6)),
+#     caption = "Mean Squared Errors by Model, Level, and Forecast Horizon",
+#     col.names = c(" ", "Model", rep(c("h=1", "h=1-8", "h=1-16"), 2)),
+#     escape = FALSE
+#   ) %>%
+#   add_header_above(c(" " = 2, "T = 100" = 3, "T = 300" = 3)) %>%
+#   # add_header_above(c(" " = 2, "Forecast Horizon" = 6)) %>%
+#   pack_rows("Level 1", 1, 1 + nrow(MSE_tidy[MSE_tidy$Level == 1, ]) - 1) %>%
+#   pack_rows("Level 2", 1 + nrow(MSE_tidy[MSE_tidy$Level == 1, ]),
+#                       1 + nrow(MSE_tidy[MSE_tidy$Level %in% 1:2, ]) - 1) %>%
+#   pack_rows("Level 3", 1 + nrow(MSE_tidy[MSE_tidy$Level %in% 1:2, ]),
+#                       1 + nrow(MSE_tidy[MSE_tidy$Level %in% 1:3, ]) - 1) %>%
+#   pack_rows("Level 4", 1 + nrow(MSE_tidy[MSE_tidy$Level %in% 1:3, ]),
+#                       nrow(MSE_tidy))
+
+MSE_display %>%
+  mutate(across(where(is.numeric), ~formatC(.x, digits = 1, format = "f"))) %>%
+  kable(
+    booktabs = TRUE,
+    longtable = TRUE,
+    align = c("l", rep("r", 6)),  # now only 7 cols
+    caption = "Mean Squared Errors by Model, Level, and Forecast Horizon",
+    col.names = c("Model", rep(c("h=1", "h=1-8", "h=1-16"), 2)),
+    escape = FALSE
+  ) %>%
+  add_header_above(c(" " = 1, "T = 100" = 3, "T = 300" = 3)) %>%
+  {
+    tbl <- .
+    start <- 1
+    for (lvl in unique(row_levels)) {
+      end <- start + sum(row_levels == lvl) - 1
+      tbl <- tbl %>% pack_rows(paste("Level", lvl), start, end)
+      start <- end + 1
+    }
+    tbl
+  }
+
+```
+
+
+```{r}
+MSE_tidy <- MSE_full %>%
+  # filter(h<=16) %>%
+  crossing(group_defs) %>%    # gives every row all 3 candidate groups
+  filter(h <= h_max) %>%      # keep only the overlapping ones
+  # filter(h>15)
+  group_by(id, .model, level, h_group) %>%
+  summarise(mean_MSE = mean(MSE), .groups = "drop") 
+
+MSE_tidy <- MSE_tidy %>%
+  group_by(level, id, h_group) %>%
+  mutate(
+    base_MSE = mean_MSE[.model == "base"],
+    change = if_else(.model == "base",
+                     formatC(mean_MSE, digits = 1, format = "f"),
+                     formatC(100 * (mean_MSE - base_MSE) / base_MSE, digits = 1, format = "f"))
+  ) %>%
+  ungroup()
+
+MSE_tidy <- MSE_tidy %>%
+  pivot_wider(
+    id_cols = c(level, .model), 
+    names_from = c(id, h_group), 
+    values_from = change
+  ) %>%
+  mutate(
+    .model = recode(.model,
+      "mint_sample" = "MinT(Sample)",
+      "mint_shr"    = "MinT(Shrink)",
+      "mint_n"      = "MinT(N)",
+      "base"        = "Base"
+    ),
+    .model = factor(.model, levels = c("MinT(Sample)", "MinT(Shrink)", "MinT(N)", "Base"))
+  ) %>% 
+  mutate(
+    level = recode(level,
+      `1` = "Top level",
+      `2` = "Level 1",
+      `3` = "Level 2",
+      `4` = "Bottom level"
+    ),
+    level = factor(level, levels = c("Top level", "Level 1", "Level 2", "Bottom level"))
+  ) %>% 
+  arrange(level, .model)
+
+row_levels <- MSE_tidy$level
+MSE_display <- MSE_tidy %>% select(-level)
+
+
+MSE_display %>%
+  mutate(across(where(is.numeric), ~formatC(.x, digits = 1, format = "f"))) %>%
+  kable(
+    booktabs = TRUE,
+    longtable = TRUE,
+    align = c("l", rep("r", 6)),  # now only 7 cols
+    caption = "Mean Squared Errors by Model, Level, and Forecast Horizon",
+    col.names = c(" ", rep(c("h=1", "h=1-8", "h=1-16"), 2)),
+    escape = FALSE
+  ) %>%
+  add_header_above(c(" " = 1, "T = 100" = 3, "T = 300" = 3)) %>%
+  {
+    tbl <- .
+    start <- 1
+    for (lvl in unique(row_levels)) {
+      end <- start + sum(row_levels == lvl) - 1
+      tbl <- tbl %>% pack_rows(lvl, start, end)
+      start <- end + 1
+    }
+    tbl
+  }
+```
+
+
+
+
+
+
+
+
+
