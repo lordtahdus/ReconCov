@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name=sim_chunk
-#SBATCH --output=logs/output_%A_%a.log
-#SBATCH --error=logs/error_%A_%a.log
+#SBATCH --output=job/logs/output_%A_%a.log
+#SBATCH --error=job/logs/error_%A_%a.log
 #SBATCH --array=1-3
 #SBATCH --time=03:00:00
 #SBATCH --mem=4G
@@ -17,4 +17,4 @@ START=$(( ($SLURM_ARRAY_TASK_ID - 1) * 100 + 1 ))
 END=$(( $SLURM_ARRAY_TASK_ID * 100 ))
 
 # Run the script
-Rscript ~/yi61/tsuu0007/ReconCov/job/testrun/job.R $START $END
+Rscript ~/yi61/tsuu0007/ReconCov/job/testrun/test_job.R $START $END
