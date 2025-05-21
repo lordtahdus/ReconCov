@@ -306,7 +306,7 @@ file <- paste0(
 )
 saveRDS(sim_results, file = paste("sim/sim_results/", file, ".rds", sep = ""))
 
-error_list <- map(res_list, "SSE")
+error_list <- purrr::map(res_list, "SSE")
 saveRDS(error_list, file = paste("sim/sim_results/", file, "_errorlist.rds", sep = ""))
 
 
@@ -337,6 +337,6 @@ MSE_ts |> group_by(.model) |> index_by(h) |>
   theme_minimal()
 
 
-
+MSE$mint_shr - MSE$mint_n
 
 
