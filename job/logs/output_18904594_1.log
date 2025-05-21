@@ -1,0 +1,19 @@
+ERROR: Unable to locate a modulefile for 'r/4.4.0-mkl'
+    A11 A12 A21 A22
+C1    1   1   1   1
+B1    1   1   0   0
+B2    0   0   1   1
+A11   1   0   0   0
+A12   0   1   0   0
+A21   0   0   1   0
+A22   0   0   0   1
+Iteration  1 
+
+Iteration  2 
+
+Iteration  3 
+
+Iteration  4 
+
+Iteration  5 
+
