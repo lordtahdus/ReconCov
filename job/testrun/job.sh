@@ -2,7 +2,7 @@
 #SBATCH --job-name=sim_chunk
 #SBATCH --output=job/logs/output_%A_%a.log
 #SBATCH --error=job/logs/error_%A_%a.log
-#SBATCH --array=1-3
+#SBATCH --array=1-100
 #SBATCH --time=03:00:00
 #SBATCH --mem=4G
 #SBATCH --cpus-per-task=1
@@ -13,6 +13,7 @@ module load r/4.4.0-mkl
 export R_LIBS_USER=~/yi61/tsuu0007/R/library
 
 # Calculate simulation index
+INDEX=$(( $SLURM_ARRAY_TASK_ID ))
 START=$(( ($SLURM_ARRAY_TASK_ID - 1) * 100 + 1 ))
 END=$(( $SLURM_ARRAY_TASK_ID * 100 ))
 
