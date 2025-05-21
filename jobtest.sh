@@ -8,7 +8,7 @@
 #SBATCH --mem=8G
 
 # Load the R module
-module load r/4.4.1
+module load r/4.4.0-mkl
 
 export R_LIBS_USER=~/yi61/tsuu0007/R/library
 # Run the script
