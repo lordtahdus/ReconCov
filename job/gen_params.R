@@ -18,7 +18,7 @@ load_all()
 groups <- c(4,4,4,4)
 # groups <- c(6,6,6,6,6,6)
 
-T <- 116
+T <- 316
 h <- 16
 Tsplit <- T - h
 
@@ -88,7 +88,7 @@ params <- list(
   Sigma = Sigma
 )
 
-path <- "job/S16-4-1/run1/"
+path <- "job/S16-4-1/run2/"
 saveRDS(params, file = paste0(path, "params.rds"))
 
 # -------------------------------------------
