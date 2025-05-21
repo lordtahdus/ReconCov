@@ -1,0 +1,60 @@
+
+Attaching package: ‘tidyr’
+
+The following objects are masked from ‘package:Matrix’:
+
+    expand, pack, unpack
+
+Warning message:
+package ‘tidyr’ was built under R version 4.4.1 
+Registered S3 method overwritten by 'tsibble':
+  method               from 
+  as_tibble.grouped_df dplyr
+Warning message:
+package ‘fabletools’ was built under R version 4.4.1 
+Warning message:
+package ‘fable’ was built under R version 4.4.1 
+Warning message:
+package ‘feasts’ was built under R version 4.4.1 
+
+Attaching package: ‘tsibble’
+
+The following objects are masked from ‘package:base’:
+
+    intersect, setdiff, union
+
+Warning message:
+package ‘tsibble’ was built under R version 4.4.1 
+
+Attaching package: ‘dplyr’
+
+The following object is masked from ‘package:MASS’:
+
+    select
+
+The following objects are masked from ‘package:stats’:
+
+    filter, lag
+
+The following objects are masked from ‘package:base’:
+
+    intersect, setdiff, setequal, union
+
+Warning message:
+package ‘dplyr’ was built under R version 4.4.1 
+Loading required package: usethis
+Warning messages:
+1: package ‘devtools’ was built under R version 4.4.1 
+2: package ‘usethis’ was built under R version 4.4.1 
+ℹ Loading ReconCov
+Warning message:
+package ‘testthat’ was built under R version 4.4.1 
+Warning messages:
+1: In sqrt(diag(best$var.coef)) : NaNs produced
+2: In sqrt(diag(best$var.coef)) : NaNs produced
+3: In sqrt(diag(best$var.coef)) : NaNs produced
+4: In sqrt(diag(best$var.coef)) : NaNs produced
+5: In sqrt(diag(best$var.coef)) : NaNs produced
+6: In sqrt(diag(best$var.coef)) : NaNs produced
+7: In sqrt(diag(best$var.coef)) : NaNs produced
+8: In sqrt(diag(best$var.coef)) : NaNs produced
