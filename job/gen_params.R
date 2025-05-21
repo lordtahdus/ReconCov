@@ -15,10 +15,10 @@ load_all()
 
 
 # groups <- c(2,2)
-groups <- c(4,4,4,4)
-# groups <- c(6,6,6,6,6,6)
+# groups <- c(4,4,4,4)
+groups <- c(6,6,6,6,6,6)
 
-T <- 316
+T <- 116
 h <- 16
 Tsplit <- T - h
 
@@ -27,18 +27,19 @@ Tsplit <- T - h
 #   as.list(seq(1,length(groups))),
 #   list(c(1,2))
 # )
-structure <- list(
-  groups,
-  as.list(seq(1,length(groups))),
-  list(c(1,2), c(3,4)),
-  list(c(1,2))
-)
 # structure <- list(
 #   groups,
 #   as.list(seq(1,length(groups))),
-#   list(c(1,2,3), c(4,5,6)),
+#   list(c(1,2), c(3,4)),
 #   list(c(1,2))
 # )
+structure <- list(
+  groups,
+  as.list(seq(1,length(groups))),
+  # list(c(1,2,3), c(4,5,6)),
+  # list(c(1,2))
+  list(1:6)
+)
 
 (S <- construct_S(
   structure = structure,
@@ -48,16 +49,16 @@ structure <- list(
 order_S <- rownames(S)
 
 # ranges for coefs in VAR
-diag_range <- c(0.4, 0.8)
+diag_range <- c(0.4, 0.7)
 offdiag_range <- c(-0.4, 0.4)
 
 
-(A <- generate_block_diag(
+A <- generate_block_diag(
   groups = groups,
   diag_range = diag_range,
   offdiag_range = offdiag_range,
   # message = message,
-)$A)
+)$A
 
 rho <- runif(length(groups), 0.6, 0.9)
 Sigma <- generate_cor(
@@ -88,7 +89,7 @@ params <- list(
   Sigma = Sigma
 )
 
-path <- "job/S16-4-1/run2/"
+path <- "job/S36-6-1/run1/"
 saveRDS(params, file = paste0(path, "params.rds"))
 
 # -------------------------------------------
