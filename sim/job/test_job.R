@@ -52,7 +52,7 @@ A <- generate_block_diag(
   groups = groups,
   diag_range = diag_range,
   offdiag_range = offdiag_range,
-  message = message,
+  # message = message,
 )$A
 
 rho <- runif(length(groups), 0.6, 0.9)
