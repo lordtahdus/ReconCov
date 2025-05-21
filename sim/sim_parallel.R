@@ -20,7 +20,7 @@ groups <- c(2,2)
 # groups <- c(4,4,4,4)
 # groups <- c(6,6,6,6,6,6)
 
-T <- 116
+T <- 316
 h <- 16
 Tsplit <- T - h
 
@@ -307,7 +307,7 @@ file <- paste0(
 saveRDS(sim_results, file = paste("sim/sim_results/", file, ".rds", sep = ""))
 
 error_list <- map(res_list, "SSE")
-saveRDS(sim_results, file = paste("sim/sim_results/", file, "_errorlist.rds", sep = ""))
+saveRDS(error_list, file = paste("sim/sim_results/", file, "_errorlist.rds", sep = ""))
 
 
 
