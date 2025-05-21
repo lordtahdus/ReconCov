@@ -15,7 +15,7 @@ load_all()
 
 # Parameters -----------------------------------
 M <- 2
-path <- "job/S16-4-1/run1"
+path <- "job/S16-4-1/run1/"
 
 params <- readRDS(paste0(path, "params.rds"))
 
