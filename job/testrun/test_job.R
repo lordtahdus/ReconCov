@@ -14,6 +14,7 @@ load_all()
 
 
 # Parameters -----------------------------------
+M <- 5
 
 groups <- c(2,2)
 # groups <- c(4,4,4,4)
@@ -46,30 +47,9 @@ order_S <- rownames(S)
 diag_range <- c(0.4, 0.8)
 offdiag_range <- c(-0.4, 0.4)
 
-
-A <- generate_block_diag(
-  groups = groups,
-  diag_range = diag_range,
-  offdiag_range = offdiag_range,
-  # message = message,
-)$A
-
-rho <- runif(length(groups), 0.6, 0.9)
-Sigma <- generate_cor(
-  groups = groups,
-  rho = rho,
-  delta = min(rho) * 0.5,
-  # delta = 0.15,
-  epsilon = (1-max(rho)) * 0.5,
-  # epsilon = 0.15,
-  eidim = length(groups)
-)
-# convert to cov using random sd
-Sigma <- convert_cor2cov(Sigma)
-# flip signs
-V <- diag(x = sample(c(-1,1), size = sum(groups), replace = TRUE))
-Sigma <- V %*% Sigma %*% V
-
+params <- readRDS("job/testrun/params.rds")
+A <- params$A
+Sigma <- params$Sigma
 
 # Function -----------------------------------
 run <- function(A = NULL, Sigma = NULL, message = F) {
@@ -196,8 +176,6 @@ run <- function(A = NULL, Sigma = NULL, message = F) {
 
 
 
-M <- 10
-
 
 model_names <- c("base", "mint_shr", "mint_n", "mint_sample")
 SSE_cum <- setNames(
@@ -250,17 +228,24 @@ sim_results <- list(
 )
 
 # Save to file
+args <- commandArgs(trailingOnly = TRUE)
+start <- as.integer(args[1])
+end <- as.integer(args[2])
+
 S_string <- paste0("S", sum(groups))
 for (i in 2:length(structure)) {
   S_string <- paste0(S_string, "-", length(structure[[i]]))
 }
+path <- "job/testrun/"
 file <- paste0(
+  path,
   S_string,
   "_T", T-h,
-  "_M", M
+  "_M", M,
+  start, "_", end
 )
 saveRDS(sim_results, file = paste(file, ".rds", sep = ""))
-saveRDS(sim_results, file = paste(file, "_errorlist.rds", sep = ""))
+saveRDS(error_list, file = paste(file, "_er.rds", sep = ""))
 
 
 

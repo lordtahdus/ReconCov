@@ -58,9 +58,9 @@ transfrom_sim_MSE <- function(MSE, to_ts = T) {
   return(df)
 }
 
-MSE_ts <- list_MSE_to_ts(results$MSE)
+MSE_ts <- transfrom_sim_MSE(results$MSE, F)
 
-MSE_ts |> group_by(.model) |> index_by(h) |>
+MSE_ts |> group_by(.model, h) |>
   summarise(mse = mean(MSE)) |>
   ggplot(aes(x = h, y = mse, color = .model)) +
     geom_line() +
