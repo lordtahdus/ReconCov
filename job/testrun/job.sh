@@ -2,7 +2,7 @@
 #SBATCH --job-name=sim_chunk
 #SBATCH --output=job/logs/output_%A_%a.log
 #SBATCH --error=job/logs/error_%A_%a.log
-#SBATCH --array=1-100
+#SBATCH --array=1-3
 #SBATCH --time=03:00:00
 #SBATCH --mem=4G
 #SBATCH --cpus-per-task=1
