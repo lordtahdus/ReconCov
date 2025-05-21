@@ -14,8 +14,8 @@ export R_LIBS_USER=~/yi61/tsuu0007/R/library
 
 # Calculate simulation index
 INDEX=$(( $SLURM_ARRAY_TASK_ID ))
-START=$(( ($SLURM_ARRAY_TASK_ID - 1) * 100 + 1 ))
-END=$(( $SLURM_ARRAY_TASK_ID * 100 ))
+# START=$(( ($SLURM_ARRAY_TASK_ID - 1) * 100 + 1 ))
+# END=$(( $SLURM_ARRAY_TASK_ID * 100 ))
 
 # Run the script
-Rscript ~/yi61/tsuu0007/ReconCov/job/testrun/test_job.R $START $END
+Rscript ~/yi61/tsuu0007/ReconCov/job/S16-4-1/run1/jobscript.R $INDEX

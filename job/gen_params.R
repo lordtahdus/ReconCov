@@ -14,17 +14,23 @@ load_all()
 
 
 
-groups <- c(2,2)
-# groups <- c(4,4,4,4)
+# groups <- c(2,2)
+groups <- c(4,4,4,4)
 # groups <- c(6,6,6,6,6,6)
 
 T <- 116
 h <- 16
 Tsplit <- T - h
 
+# structure <- list(
+#   groups,
+#   as.list(seq(1,length(groups))),
+#   list(c(1,2))
+# )
 structure <- list(
   groups,
   as.list(seq(1,length(groups))),
+  list(c(1,2), c(3,4)),
   list(c(1,2))
 )
 # structure <- list(
@@ -46,12 +52,12 @@ diag_range <- c(0.4, 0.8)
 offdiag_range <- c(-0.4, 0.4)
 
 
-A <- generate_block_diag(
+(A <- generate_block_diag(
   groups = groups,
   diag_range = diag_range,
   offdiag_range = offdiag_range,
   # message = message,
-)$A
+)$A)
 
 rho <- runif(length(groups), 0.6, 0.9)
 Sigma <- generate_cor(
@@ -67,12 +73,25 @@ Sigma <- generate_cor(
 Sigma <- convert_cor2cov(Sigma)
 # flip signs
 V <- diag(x = sample(c(-1,1), size = sum(groups), replace = TRUE))
-Sigma <- V %*% Sigma %*% V
+(Sigma <- V %*% Sigma %*% V)
+
+
+# -------------------------------------------
 
 params <- list(
+  groups = groups,
+  T = T,
+  h = h,
+  structure = structure,
+  S = S,
   A = A,
   Sigma = Sigma
 )
 
-path <- "job/testrun/"
+path <- "job/S16-4-1/run1/"
 saveRDS(params, file = paste0(path, "params.rds"))
+
+# -------------------------------------------
+
+
+
