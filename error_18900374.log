@@ -1,0 +1,37 @@
+
+Attaching package: ‘tidyr’
+
+The following objects are masked from ‘package:Matrix’:
+
+    expand, pack, unpack
+
+Registered S3 method overwritten by 'tsibble':
+  method               from 
+  as_tibble.grouped_df dplyr
+
+Attaching package: ‘tsibble’
+
+The following objects are masked from ‘package:base’:
+
+    intersect, setdiff, union
+
+
+Attaching package: ‘dplyr’
+
+The following object is masked from ‘package:MASS’:
+
+    select
+
+The following objects are masked from ‘package:stats’:
+
+    filter, lag
+
+The following objects are masked from ‘package:base’:
+
+    intersect, setdiff, setequal, union
+
+Loading required package: usethis
+ℹ Loading ReconCov
+Error in eigen(block) : BLAS/LAPACK routine 'DGEEV ' gave error code -3
+Calls: generate_block_diag -> eigen
+Execution halted
