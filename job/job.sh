@@ -18,4 +18,4 @@ INDEX=$(( $SLURM_ARRAY_TASK_ID ))
 # END=$(( $SLURM_ARRAY_TASK_ID * 100 ))
 
 # Run the script
-Rscript ~/yi61/tsuu0007/ReconCov/job/S16-4-1/run1/jobscript.R $INDEX
+Rscript ~/yi61/tsuu0007/ReconCov/job/S16-4-1/run2/jobscript.R $INDEX
