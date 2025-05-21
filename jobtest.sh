@@ -12,5 +12,5 @@ module load r/4.4.1
 
 export R_LIBS_USER=~/yi61/tsuu0007/R/library
 # Run the script
-Rscript sim/job/test_job.R
+Rscript ~/yi61/tsuu0007/ReconCov/sim/job/test_job.R
 
