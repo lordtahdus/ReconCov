@@ -1,9 +1,9 @@
 
 
-path0 <- "job/S16-4-1/"
-runid <- 1
-struct <- "S16-4-2-1_"
-metadata <- "T100_M100_"
+path0 <- "job/S36-6-1/"
+runid <- 2
+struct <- "S36-6-1_"
+metadata <- "T300_M100_"
 
 filename <- paste0(struct, metadata)
 path <- paste0(path0, "run", runid, "/")
