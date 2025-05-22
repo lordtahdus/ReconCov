@@ -46,3 +46,18 @@ template$W_shr <- W_shr_store
 template$W_n <- W_n_store
 
 saveRDS(template, paste0(path0, metadata, "run", runid, ".rds"))
+
+
+# ----------------------- errors_data
+
+path_er <- paste0(path, "errors_data/")
+er_list <- vector("list", 10000)
+for (i in 1:100) {
+  erread <- readRDS(paste0(path, filename, i, "_er.rds"))
+  # index for 100 runs
+  start <- (i - 1) * 100 + 1
+  end <- i * 100
+  er_list[start:end] <- erread
+}
+
+saveRDS(er_list, paste0(path0, metadata, "run", runid, "_er.rds"))
