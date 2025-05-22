@@ -1,9 +1,9 @@
 
 
 path0 <- "job/S16-4-1/"
-runid <- 2
+runid <- 1
 struct <- "S16-4-2-1_"
-metadata <- "T300_M100_"
+metadata <- "T100_M100_"
 
 filename <- paste0(struct, metadata)
 path <- paste0(path0, "run", runid, "/")
@@ -53,7 +53,7 @@ saveRDS(template, paste0(path0, metadata, "run", runid, ".rds"))
 path_er <- paste0(path, "errors_data/")
 er_list <- vector("list", 10000)
 for (i in 1:100) {
-  erread <- readRDS(paste0(path, filename, i, "_er.rds"))
+  erread <- readRDS(paste0(path_er, filename, i, "_er.rds"))
   # index for 100 runs
   start <- (i - 1) * 100 + 1
   end <- i * 100
