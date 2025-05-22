@@ -28,13 +28,13 @@ library(purrr)
 # Read
 
 ```{r}
-file <- "S4-2-1_100"
-path <- paste("sim_results/", file, ".rds", sep = "")
-results <- readRDS(path)
-
-MSE <- results$MSE
-W_shr <- results$W_shr
-W_n <- results$W_n
+# file <- "S4-2-1_100"
+# path <- paste("sim_results/", file, ".rds", sep = "")
+# results <- readRDS(path)
+# 
+# MSE <- results$MSE
+# W_shr <- results$W_shr
+# W_n <- results$W_n
 ```
 
 # Inspect
@@ -67,6 +67,7 @@ MSE_ts |> group_by(.model, h) |>
     labs(x = "Horizon", y = "MSE") +
     theme_minimal()
 
+# % improvements over base
 MSE_ts |>
   group_by(series, h) |>
   mutate(
@@ -84,40 +85,15 @@ MSE_ts |>
     geom_line() +
     labs(x = "Horizon", y = "% relative improvements in MSE") +
     theme_minimal()
+
 ```
+
+# By level analysis
 
 ```{r}
-# params from shrinkage and novelist
-results <- sim2
-
-plot(
-  results$W_shr,
-  results$W_n[,1]
-)
-
-# filter diff
-cond <- results$W_shr != results$W_n[,1]
-# cond <- results$W_shr != results$W_n[,1] & results$W_n[,1] < 0.3
-
-sum(!cond)/length(results$W_shr) # proportion of similarity in lambda
-
-# lambdas given thresholded != identity
-plot(
-  results$W_shr[cond],
-  results$W_n[,1][cond]
-); abline(a = 0, b = 1, col = "red", lty = 1)
-
-# lambda vs delta NOVELIST
-plot(results$W_n)
-# given thresholded != identity
-plot(
-  results$W_n[,1][cond],
-  results$W_n[,2][cond]
-)
-
-hist(results$W_n[,2])
-hist(results$W_n[,2][cond])
+#TODO ...
 ```
+
 
 # Compare between 2 simulations
 
@@ -147,10 +123,23 @@ MSE_full |> group_by(id, .model, h) |>
 # plot by h and hier-level
 MSE_full |> 
   group_by(id, .model, h, level) |>
-  summarise(mse = mean(MSE)) |>
+  summarise(MSE = mean(MSE)) |>
+  
+  group_by(id, level, h) |>
+  mutate(
+    base_MSE = MSE[.model == "base"]
+  ) |>
+  ungroup() |>
+  group_by(id, level, .model, h) |>
+  summarise(
+    MSE = mean(MSE),
+    base_MSE = mean(base_MSE),
+    pct_change = (MSE - base_MSE) / base_MSE * 100
+  ) |>
+  
   filter(h <= 10) |>
   mutate(facet_id = paste0(id, level)) |>
-  ggplot(aes(x = h, y = mse, color = .model)) +
+  ggplot(aes(x = h, y = pct_change, color = .model)) +
     geom_line() +
     facet_wrap(~ facet_id, nrow=2, scales = "free_y") +
     labs(x = "Horizon", y = "MSE") +
@@ -183,5 +172,82 @@ MSE_full |>
     labs(x = "Horizon", y = "% relative improvements in MSE") +
     theme_minimal()
 ```
+
+
+
+# Inspect NOVELSIT
+
+```{r}
+# params from shrinkage and novelist
+results <- sim1
+
+plot(
+  results$W_shr,
+  results$W_n[,1]
+)
+
+# filter diff
+cond <- results$W_shr != results$W_n[,1]
+# cond <- results$W_shr != results$W_n[,1] & results$W_n[,1] < 0.3
+
+cat("Similarity %", sum(!cond)/length(results$W_shr)) # proportion of similarity in lambda
+
+# lambdas given thresholded != identity
+plot(
+  results$W_shr[cond],
+  results$W_n[,1][cond]
+); abline(a = 0, b = 1, col = "red", lty = 1)
+
+# lambda vs delta NOVELIST
+plot(results$W_n)
+# given thresholded != identity
+plot(
+  results$W_n[,1][cond],
+  results$W_n[,2][cond]
+)
+
+hist(results$W_n[,2])
+hist(results$W_n[,2][cond])
+```
+
+
+## Performance when NOVELIST diff
+
+```{r}
+# read error list results
+
+error_diff <- error_list[cond]
+model_names <- names(error_list[[1]])
+SSE_cum_diff <- setNames(
+  lapply(model_names, function(name)
+    Reduce(`+`, lapply(error_diff, `[[`, name))
+  ),
+  model_names
+)
+MSE_diff <- lapply(SSE_cum_diff, function(mat) mat / length(error_diff))
+
+MSE_diff <- transfrom_sim_MSE(MSE_diff, F)
+
+# % improvement only for diff NOVELIST
+MSE_diff|>
+  group_by(series, h) |>
+  mutate(
+    base_MSE = MSE[.model == "base"]
+  ) |>
+  ungroup() |>
+  group_by(.model, h) |>
+  summarise(
+    MSE = mean(MSE),
+    base_MSE = mean(base_MSE),
+    pct_change = (MSE - base_MSE) / base_MSE * 100
+  ) |>
+  filter(h <=16) |>
+  ggplot(aes(x = h, y = pct_change, color = .model)) +
+    geom_line() +
+    labs(x = "Horizon", y = "% relative improvements in MSE") +
+    theme_minimal()
+
+```
+
 
 
