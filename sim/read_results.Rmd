@@ -119,6 +119,13 @@ hist(results$W_n[,2])
 hist(results$W_n[,2][cond])
 ```
 
+# NOVELIST where not collapse to identity
+
+```{r}
+errors[1]
+```
+
+
 # Compare between 2 simulations
 
 ```{r}
