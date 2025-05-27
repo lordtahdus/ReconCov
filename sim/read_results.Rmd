@@ -58,15 +58,32 @@ transfrom_sim_MSE <- function(MSE, to_ts = T) {
   return(df)
 }
 
-MSE_ts <- list_MSE_to_ts(results$MSE)
+MSE_ts <- transfrom_sim_MSE(results$MSE, F)
 
-MSE_ts |> group_by(.model) |> index_by(h) |>
+MSE_ts |> group_by(.model, h) |>
   summarise(mse = mean(MSE)) |>
   ggplot(aes(x = h, y = mse, color = .model)) +
     geom_line() +
     labs(x = "Horizon", y = "MSE") +
     theme_minimal()
 
+MSE_ts |>
+  group_by(series, h) |>
+  mutate(
+    base_MSE = MSE[.model == "base"]
+  ) |>
+  ungroup() |>
+  group_by(.model, h) |>
+  summarise(
+    MSE = mean(MSE),
+    base_MSE = mean(base_MSE),
+    pct_change = (MSE - base_MSE) / base_MSE * 100
+  ) |>
+  filter(h <=16) |>
+  ggplot(aes(x = h, y = pct_change, color = .model)) +
+    geom_line() +
+    labs(x = "Horizon", y = "% relative improvements in MSE") +
+    theme_minimal()
 ```
 
 ```{r}
