@@ -97,6 +97,16 @@ simulate_bottom_var <- function(
 #' each group (delta). Then add random noise to all elements of the matrix, by
 #' scaling epsilon by outer cross products of random unit vectors.
 #'
+#' @param groups Integer vector specifying the number of series in each group
+#' @param rho Numeric vector of length \code{length(groups)} specifying the
+#'  base correlation values for each group.
+#' @param delta Numeric, the correlation value for off-diagonal blocks (default is 0.15).
+#' @param epsilon Numeric, the scaling factor for noise added to the correlation matrix
+#'  (default is 0.15).
+#' @param eidim Integer, the dimension of the noise space (default is 2).
+#' @param random_seed Optional integer for reproducibility.
+#' @return A \eqn{p \times p} correlation matrix, where \eqn{p = \sum groups}.
+#'
 #' @references
 #' Hardin, J., Garcia, S. R., & Golan, D. (2013). A method for generating realistic correlation matrices. The Annals of Applied Statistics, 7(3), 1733–1762. https://www.jstor.org/stable/23566492
 #'
@@ -244,7 +254,14 @@ convert_cor2cov <- function(
     cor,
     stdevs = runif(nrow(cor), sqrt(2), sqrt(6))
 ) {
-  # TODO: check if cor is a correlation matrix
+  # check if cor is a correlation matrix
+  if (!is.matrix(cor) || nrow(cor) != ncol(cor)) {
+    stop("Input 'cor' must be a square matrix.")
+  }
+  # stays in -1 and 1
+  if (any(abs(cor) > 1)) {
+    stop("Input 'cor' must be a correlation matrix with values in [-1, 1].")
+  }
   p <- nrow(cor)
   cov <- diag(stdevs) %*% cor %*% diag(stdevs)
   return(cov)
