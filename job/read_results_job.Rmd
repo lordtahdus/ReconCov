@@ -40,7 +40,7 @@ library(purrr)
 # Inspect
 
 ```{r}
-MSE_ts <- transfrom_sim_MSE(results$MSE, F)
+MSE_ts <- transform_sim_MSE(results$MSE, F)
 
 MSE_ts |> group_by(.model, h) |>
   summarise(mse = mean(MSE)) |>
@@ -80,17 +80,20 @@ MSE_ts |>
 # Compare between 2 simulations
 
 ```{r}
-MSE1 <- transfrom_sim_MSE(sim1$MSE, F)
-MSE2 <- transfrom_sim_MSE(sim2$MSE, F)
+MSE1 <- transform_sim_MSE(sim1$MSE, F)
+MSE2 <- transform_sim_MSE(sim2$MSE, F)
 
+# ---- Add hierarchy level to MSE series ----
 hier_level <- MSE1$series |>
   substring(1, 1) |>
   unique() |> sort(decreasing = TRUE)
 
-MSE_full <- bind_rows(MSE1, MSE2, .id = "id") |>
-  mutate(
-    level = match(substring(series,1,1), hier_level) 
-  )
+MSE1 <- MSE1 %>% 
+  mutate(level = match(substring(series,1,1), hier_level))
+MSE2 <- MSE2 %>% 
+  mutate(level = match(substring(series,1,1), hier_level))
+
+MSE_full <- bind_rows(MSE1, MSE2, .id = "id")
 
 # plot by h
 MSE_full |> group_by(id, .model, h) |>
@@ -119,7 +122,7 @@ MSE_full |>
     pct_change = (MSE - base_MSE) / base_MSE * 100
   ) |>
   
-  filter(h <= 10) |>
+  filter(h <= 4) |>
   mutate(facet_id = paste0(id, level)) |>
   ggplot(aes(x = h, y = pct_change, color = .model)) +
     geom_line() +
@@ -193,7 +196,7 @@ hist(results$W_n[,2][cond])
 ```
 
 
-## Performance when NOVELIST diff
+## When Mint_n diff
 
 ```{r}
 # read error list results
@@ -208,7 +211,7 @@ SSE_cum_diff <- setNames(
 )
 MSE_diff <- lapply(SSE_cum_diff, function(mat) mat / length(error_diff))
 
-MSE_diff <- transfrom_sim_MSE(MSE_diff, F)
+MSE_diff <- transform_sim_MSE(MSE_diff, F)
 
 # % improvement only for diff NOVELIST
 MSE_diff|>
@@ -231,5 +234,62 @@ MSE_diff|>
 
 ```
 
+
+## When Mint_n is better
+
+```{r}
+# when Mint_n is better than shrinkage at 1-step-ahead
+
+# ----- general MSE
+cond_n_better <- map_lgl(
+  error_list, function(errs) {
+    e_n <- errs$mint_n[1,]
+    e_shr <- errs$mint_shr[1,]
+    
+    mean(e_n^2) > mean(e_shr^2) * 1.5
+  }
+) 
+
+# ----- at specific level MSE
+at_level <- "^A"
+at_level <- grep(at_level, colnames(error_list[[1]]$mint_n), value = TRUE)
+
+cond_n_better <- map_lgl(
+  error_list, function(errs) {
+    e_n <- errs$mint_n[1,at_level]
+    e_shr <- errs$mint_shr[1,at_level]
+    
+    mean(e_n^2) > mean(e_shr^2)
+  }
+) 
+
+# ----- plot
+sum(cond_n_better) / length(cond_n_better)
+
+W_n_tibble <- cbind(sim1$W_n, n_better = cond_n_better) %>% 
+  as_tibble() 
+
+# delta vs lambda
+W_n_tibble %>% 
+  ggplot(aes(x = lambda, y = delta)) +
+    geom_point(alpha = 0.3) +
+    facet_wrap(~ n_better)
+
+
+# delta dens
+W_n_tibble %>% 
+  ggplot(aes(x = delta, fill = n_better, group = n_better)) +
+    geom_density(alpha = 0.3) +
+    theme_minimal()
+
+# lambda dens
+W_n_tibble %>% 
+  ggplot(aes(x = lambda, fill = n_better, group = n_better)) +
+    geom_density(alpha = 0.3) +
+    theme_minimal()
+
+
+
+```
 
 
