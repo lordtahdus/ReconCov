@@ -24,6 +24,7 @@ plot_heatmap <- function(mat, is_unit_spherical = FALSE) {
     geom_tile(color = "white") +
     scale_fill_gradient2(low = "blue", high = "red", mid = "white",
                          midpoint = midpoint, limit = limit, name = "Corr") +
+    scale_y_reverse() +
     theme_minimal() +
     coord_fixed()
 }
