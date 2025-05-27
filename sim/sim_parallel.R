@@ -16,24 +16,30 @@ load_all()
 
 # Parameters -----------------------------------
 
-groups <- c(2,2)
-# groups <- c(4,4,4,4)
+# groups <- c(2,2)
+groups <- c(4,4,4,4)
 # groups <- c(6,6,6,6,6,6)
 
-T <- 316
-h <- 16
+T <- 108
+h <- 8
 Tsplit <- T - h
 
+# structure <- list(
+#   groups,
+#   as.list(seq(1,length(groups))),
+#   list(c(1,2))
+# )
 structure <- list(
   groups,
   as.list(seq(1,length(groups))),
-  list(c(1,2))
+  list(c(1,2,3,4))
 )
 # structure <- list(
 #   groups,
 #   as.list(seq(1,length(groups))),
-#   list(c(1,2,3), c(4,5,6)),
-#   list(c(1,2))
+#   # list(c(1,2,3), c(4,5,6)),
+#   # list(c(1,2))
+#   list(1:6)
 # )
 
 (S <- construct_S(
@@ -47,24 +53,29 @@ order_S <- rownames(S)
 diag_range <- c(0.4, 0.8)
 offdiag_range <- c(-0.4, 0.4)
 
-
+## VAR(1) block -------------------------
 A <- generate_block_diag(
   groups = groups,
   diag_range = diag_range,
   offdiag_range = offdiag_range,
-  message = message,
 )$A
 
-rho <- runif(length(groups), 0.6, 0.9)
-Sigma <- generate_cor(
+## Sigma ---------------------------------
+rho <- runif(length(groups), 0.8, 0.9)
+Sigma_raw <- generate_cor(
   groups = groups,
   rho = rho,
-  delta = min(rho) * 0.5,
+  delta = min(rho) * 0.6,
   # delta = 0.15,
   epsilon = (1-max(rho)) * 0.5,
   # epsilon = 0.15,
   eidim = length(groups)
 )
+
+plot_heatmap(Sigma_raw, TRUE)
+Sigma <- edit(Sigma_raw) # edit manually
+Sigma[upper.tri(Sigma)] <- t(Sigma)[upper.tri(Sigma)]
+
 # convert to cov using random sd
 Sigma <- convert_cor2cov(Sigma)
 # flip signs
@@ -74,34 +85,6 @@ Sigma <- V %*% Sigma %*% V
 
 # Function -----------------------------------
 run <- function(A = NULL, Sigma = NULL, message = F) {
-
-  # # # # # #
-  # Generate parameters for simulating bottom series
-  # if (is.null(A) & is.null(Sigma)) {
-  #   A <- generate_block_diag(
-  #     groups = groups,
-  #     diag_range = diag_range,
-  #     offdiag_range = offdiag_range,
-  #     message = message,
-  #   )$A
-  #
-  #   rho <- runif(length(groups), 0.6, 0.9)
-  #   Sigma <- generate_cor(
-  #     groups = groups,
-  #     rho = rho,
-  #     delta = min(rho) * 0.5,
-  #     # delta = 0.15,
-  #     epsilon = (1-max(rho)) * 0.5,
-  #     # epsilon = 0.15,
-  #     eidim = length(groups)
-  #   )
-  #   # convert to cov using random sd
-  #   Sigma <- convert_cor2cov(Sigma)
-  #   # flip signs
-  #   V <- diag(x = sample(c(-1,1), size = sum(groups), replace = TRUE))
-  #   Sigma <- V %*% Sigma %*% V
-  # }
-
 
   # # # # # #
   # generate bottom-up series and transforming data
@@ -200,8 +183,7 @@ run <- function(A = NULL, Sigma = NULL, message = F) {
 library(future.apply)
 library(progressr)
 
-M <- 10000
-
+M <- 500
 
 model_names <- c("base", "mint_shr", "mint_n", "mint_sample")
 SSE_cum <- setNames(
