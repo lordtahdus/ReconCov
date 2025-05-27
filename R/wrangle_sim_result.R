@@ -18,18 +18,18 @@
 #'
 #' @export
 transfrom_sim_MSE <- function(MSE, to_ts = T) {
-  df <- imap_dfr(MSE, function(mat, model_name) {
-    as_tibble(mat) %>%
-      mutate(h = row_number()) %>%
-      pivot_longer(cols = -h, names_to = "series", values_to = "MSE") %>%
-      mutate(
+  df <- purrr::imap_dfr(MSE, function(mat, model_name) {
+    tibble::as_tibble(mat) %>%
+      dplyr::mutate(h = dplyr::row_number()) %>%
+      tidyr::pivot_longer(cols = -h, names_to = "series", values_to = "MSE") %>%
+      dplyr::mutate(
         .model = model_name,
       ) %>%
-      select(.model, series, h, MSE)
+      dplyr::select(.model, series, h, MSE)
   })
   if (to_ts) {
     return(
-      as_tsibble(key = c(.model, series), index = h)
+      tsibble::as_tsibble(df, key = c(.model, series), index = h)
     )
   }
   return(df)
