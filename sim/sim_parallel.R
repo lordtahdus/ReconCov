@@ -58,14 +58,21 @@ A <- generate_block_diag(
   groups = groups,
   diag_range = diag_range,
   offdiag_range = offdiag_range,
+  stationary = FALSE,
 )$A
 
+plot_heatmap(A, TRUE)
+A <- edit(A) ;colnames(A) <- NULL # edit manually
+
+any((eigen(A)$values) < 0)
+
+
 ## Sigma ---------------------------------
-rho <- runif(length(groups), 0.8, 0.9)
+rho <- runif(length(groups), 0.6, 0.8)
 Sigma_raw <- generate_cor(
   groups = groups,
   rho = rho,
-  delta = min(rho) * 0.6,
+  delta = min(rho) * 0.5,
   # delta = 0.15,
   epsilon = (1-max(rho)) * 0.5,
   # epsilon = 0.15,
@@ -73,14 +80,17 @@ Sigma_raw <- generate_cor(
 )
 
 plot_heatmap(Sigma_raw, TRUE)
-Sigma <- edit(Sigma_raw) # edit manually
+Sigma <- edit(Sigma_raw) ; colnames(Sigma) <- NULL # edit manually
 Sigma[upper.tri(Sigma)] <- t(Sigma)[upper.tri(Sigma)]
+any((eigen(Sigma)$values) < 1e-8)
 
 # convert to cov using random sd
 Sigma <- convert_cor2cov(Sigma)
 # flip signs
 V <- diag(x = sample(c(-1,1), size = sum(groups), replace = TRUE))
 Sigma <- V %*% Sigma %*% V
+
+plot_heatmap(Sigma %>% cov2cor(), TRUE)
 
 
 # Function -----------------------------------
@@ -174,7 +184,8 @@ run <- function(A = NULL, Sigma = NULL, message = F) {
   list(
     SSE = SSE,
     W_shr = W_shr$lambda,
-    W_n = c(W_n$lambda, W_n$delta)
+    W_n = c(W_n$lambda, W_n$delta),
+    W1_hat = y - y_hat
   )
 }
 
@@ -284,14 +295,16 @@ for (i in 2:length(structure)) {
 file <- paste0(
   S_string,
   "_T", T-h,
-  "_M", M
+  "_M", M,
+  "_run2"
 )
 saveRDS(sim_results, file = paste("sim/sim_results/", file, ".rds", sep = ""))
 
 error_list <- purrr::map(res_list, "SSE")
 saveRDS(error_list, file = paste("sim/sim_results/", file, "_errorlist.rds", sep = ""))
 
-
+W1_hat_list <- purrr::map(res_list, "W1_hat")
+saveRDS(W1_hat_list, file = paste("sim/sim_results/", file, "_W1hat.rds", sep = ""))
 
 # Inspect --------------------
 
