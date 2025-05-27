@@ -93,6 +93,15 @@ Sigma <- V %*% Sigma %*% V
 plot_heatmap(Sigma %>% cov2cor(), TRUE)
 
 
+# temporary save
+params <- list(
+  groups = groups,
+  S      = S,
+  A      = A,
+  Sigma  = Sigma
+)
+saveRDS(params, "sim/temp_params.rds")
+
 # Function -----------------------------------
 run <- function(A = NULL, Sigma = NULL, message = F) {
 
