@@ -40,24 +40,6 @@ library(purrr)
 # Inspect
 
 ```{r}
-transfrom_sim_MSE <- function(MSE, to_ts = T) {
-  df <- imap_dfr(MSE, function(mat, model_name) {
-    as_tibble(mat) %>%
-      mutate(h = row_number()) %>%
-      pivot_longer(cols = -h, names_to = "series", values_to = "MSE") %>%
-      mutate(
-        .model = model_name,
-      ) %>%
-      select(.model, series, h, MSE)
-  })
-  if (to_ts) {
-    return(
-      as_tsibble(key = c(.model, series), index = h)
-    )
-  }
-  return(df)
-}
-
 MSE_ts <- transfrom_sim_MSE(results$MSE, F)
 
 MSE_ts |> group_by(.model, h) |>
