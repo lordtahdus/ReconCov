@@ -64,12 +64,19 @@ A <- generate_block_diag(
 plot_heatmap(A, TRUE)
 A <- edit(A) ;colnames(A) <- NULL # edit manually
 
-any((eigen(A)$values) < 0)
+# check stationary
+for (block in seq_along(groups)) {
+  size <- groups[block]
+  index <- seq(sum(groups[1:(block-1)]) + 1, sum(groups[1:block]))
+  print(
+    any(abs(A[block, block]) > 0.9)
+  )
+}
 
 
 ## Sigma ---------------------------------
 rho <- runif(length(groups), 0.6, 0.8)
-Sigma_raw <- generate_cor(
+Sigma <- generate_cor(
   groups = groups,
   rho = rho,
   delta = min(rho) * 0.5,
@@ -79,8 +86,8 @@ Sigma_raw <- generate_cor(
   eidim = length(groups)
 )
 
-plot_heatmap(Sigma_raw, TRUE)
-Sigma <- edit(Sigma_raw) ; colnames(Sigma) <- NULL # edit manually
+plot_heatmap(Sigma, TRUE)
+Sigma <- edit(Sigma) ; colnames(Sigma) <- NULL # edit manually
 Sigma[upper.tri(Sigma)] <- t(Sigma)[upper.tri(Sigma)]
 any((eigen(Sigma)$values) < 1e-8)
 
@@ -92,6 +99,19 @@ Sigma <- V %*% Sigma %*% V
 
 plot_heatmap(Sigma %>% cov2cor(), TRUE)
 
+# modify a range of values in sigma
+R <- cov2cor(Sigma)
+# scale down by x
+lower <- 0.66
+upper <- 0.69
+R[lower < abs(R) & abs(R) < upper] <-
+  R[lower < abs(R) & abs(R) < upper] * 0.05   # scale x
+
+plot_heatmap(R)
+any((eigen(R)$values) < 1e-8)
+R <- nearPD(R)$mat %>% as.matrix()
+D <- diag(sqrt(diag(Sigma)))
+Sigma <- D %*% R %*% D
 
 # temporary save
 params <- list(
@@ -161,12 +181,15 @@ run <- function(A = NULL, Sigma = NULL, message = F) {
   W_shr <- shrinkage_est(
     y - y_hat
   )
+  window <- round(Tsplit * 0.7)
   W_n <- novelist_cv(
     y,
     y_hat,
     S,
-    window = round(Tsplit/2),
-    message = FALSE
+    window = window,
+    deltas = seq(0, 0.3, by = 0.05),
+    ensure_PD = TRUE,
+    message = message
   )
 
   # # # # # #
@@ -194,7 +217,7 @@ run <- function(A = NULL, Sigma = NULL, message = F) {
     SSE = SSE,
     W_shr = W_shr$lambda,
     W_n = c(W_n$lambda, W_n$delta),
-    W1_hat = y - y_hat
+    W1_hat = compute_cov_matrix(y - y_hat, zero_mean = TRUE)
   )
 }
 
@@ -229,6 +252,7 @@ with_progress({
   res_list <- future_lapply(
     1:M, function(i) {
       p(message = sprintf("Sim %d", i))  # advances safely
+      run(A, Sigma, message = FALSE)
     },
     future.seed=TRUE
   )
