@@ -203,6 +203,11 @@ run <- function(A = NULL, Sigma = NULL, message = F) {
 library(future.apply)
 library(progressr)
 
+handlers(global = TRUE) # Setup progress bar handler
+handlers("txtprogressbar")  # or "progress" for a fancier bar
+
+plan(multisession, workers = parallel::detectCores() - 2)
+
 M <- 500
 
 model_names <- c("base", "mint_shr", "mint_n", "mint_sample")
@@ -214,22 +219,16 @@ SSE_cum <- setNames(
 )
 
 # PARALLEL
-
-handlers(global = TRUE) # Setup progress bar handler
-handlers("txtprogressbar")  # or "progress" for a fancier bar
-
-plan(multisession, workers = parallel::detectCores() - 2)
-
 # res_list <- future_lapply(seq_len(M), function(i) run(), future.seed=TRUE)
 
 # parallel with progress bar
 with_progress({
   p <- progressor(along = 1:M)  # auto sets steps = length
 
+  set.seed(1)
   res_list <- future_lapply(
     1:M, function(i) {
       p(message = sprintf("Sim %d", i))  # advances safely
-      run(A, Sigma)
     },
     future.seed=TRUE
   )
@@ -242,11 +241,11 @@ res_list[[1]]$SSE |> names() == SSE_cum |> names()
 SSE_cum <- Reduce(function(acc, res) Map(`+`, acc, res$SSE),
                       res_list, init = SSE_cum)
 W_shr_store <- sapply(res_list, `[[`, "W_shr")
-W_n_store <- t(sapply(res_list, `[[`, "W_n"))
+W_n_store <- t(sapply(res_list, `[[`, "W_n")) ; colnames(W_n_store) <- c("lambda", "delta")
 
 MSE <- lapply(SSE_cum, function(mat) mat / M)
 
-plan(sequential) # Reset to sequential
+# plan(sequential) # Reset to sequential
 
 
 # Warning message:
@@ -286,7 +285,7 @@ plan(sequential) # Reset to sequential
 
 
 # Combine all your outputs into a named list
-sim_results <- list(
+results <- list(
   groups = groups,
   S      = S,
   A      = A,
@@ -295,6 +294,8 @@ sim_results <- list(
   W_shr  = W_shr_store,       # can be a list of matrices or one matrix
   W_n    = W_n_store          # same
 )
+error_list <- purrr::map(res_list, "SSE")
+W1_hat_list <- purrr::map(res_list, "W1_hat")
 
 # Save to file
 S_string <- paste0("S", sum(groups))
@@ -305,14 +306,12 @@ file <- paste0(
   S_string,
   "_T", T-h,
   "_M", M,
-  "_run2"
+  "_run3"
 )
-saveRDS(sim_results, file = paste("sim/sim_results/", file, ".rds", sep = ""))
+saveRDS(results, file = paste("sim/sim_results/", file, ".rds", sep = ""))
 
-error_list <- purrr::map(res_list, "SSE")
 saveRDS(error_list, file = paste("sim/sim_results/", file, "_errorlist.rds", sep = ""))
 
-W1_hat_list <- purrr::map(res_list, "W1_hat")
 saveRDS(W1_hat_list, file = paste("sim/sim_results/", file, "_W1hat.rds", sep = ""))
 
 # Inspect --------------------
@@ -322,16 +321,7 @@ library(purrr)
 
 MSE
 
-MSE_ts <- imap_dfr(MSE, function(mat, model_name) {
-  as_tibble(mat) %>%
-    mutate(h = row_number()) %>%
-    pivot_longer(cols = -h, names_to = "series", values_to = "MSE") %>%
-    mutate(
-      .model = model_name,
-    ) %>%
-    select(.model, series, h, MSE)
-}) %>%
-  as_tsibble(key = c(.model, series), index = h)
+MSE_ts <- transform_sim_MSE(MSE)
 
 MSE_ts |> group_by(.model) |> index_by(h) |>
   summarise(mse = mean(MSE)) |>
