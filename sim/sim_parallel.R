@@ -20,7 +20,7 @@ load_all()
 groups <- c(4,4,4,4)
 # groups <- c(6,6,6,6,6,6)
 
-T <- 108
+T <- 58
 h <- 8
 Tsplit <- T - h
 
@@ -51,7 +51,7 @@ order_S <- rownames(S)
 
 # ranges for coefs in VAR
 diag_range <- c(0.4, 0.8)
-offdiag_range <- c(-0.4, 0.4)
+offdiag_range <- c(-0.6, 0.6)
 
 ## VAR(1) block -------------------------
 A <- generate_block_diag(
@@ -75,31 +75,35 @@ for (block in seq_along(groups)) {
 
 
 ## Sigma ---------------------------------
-rho <- runif(length(groups), 0.6, 0.8)
+rho <- runif(length(groups), 0.5, 0.6)
 Sigma <- generate_cor(
   groups = groups,
   rho = rho,
-  delta = min(rho) * 0.5,
+  delta = min(rho) * 0.8,
   # delta = 0.15,
-  epsilon = (1-max(rho)) * 0.5,
+  epsilon = (1-max(rho))*0.9,
   # epsilon = 0.15,
   eidim = length(groups)
 )
 
 plot_heatmap(Sigma, TRUE)
+
 Sigma <- edit(Sigma) ; colnames(Sigma) <- NULL # edit manually
 Sigma[upper.tri(Sigma)] <- t(Sigma)[upper.tri(Sigma)]
 any((eigen(Sigma)$values) < 1e-8)
 
 # convert to cov using random sd
-Sigma <- convert_cor2cov(Sigma)
+Sigma <- convert_cor2cov(
+  Sigma,
+  stdevs = runif(nrow(Sigma), 0.5*sqrt(2), 2*sqrt(6))
+)
 # flip signs
 V <- diag(x = sample(c(-1,1), size = sum(groups), replace = TRUE))
 Sigma <- V %*% Sigma %*% V
 
 plot_heatmap(Sigma %>% cov2cor(), TRUE)
 
-# modify a range of values in sigma
+### modify a range of values---------
 R <- cov2cor(Sigma)
 # scale down by x
 lower <- 0.66
@@ -112,6 +116,17 @@ any((eigen(R)$values) < 1e-8)
 R <- nearPD(R)$mat %>% as.matrix()
 D <- diag(sqrt(diag(Sigma)))
 Sigma <- D %*% R %*% D
+
+### formulate as NOVELIST ------------
+delta <- 0.5
+lambda <- 0.2
+R <- cov2cor(Sigma)
+R_thresh <- sign(R) * pmax(abs(R) - delta, 0)
+diag(R_thresh) <- 1
+R_novelist <- lambda * R_thresh + (1 - lambda) * R
+D <- diag(sqrt(diag(Sigma)))
+Sigma <- D %*% R_novelist %*% D
+
 
 # temporary save
 params <- list(
@@ -187,7 +202,7 @@ run <- function(A = NULL, Sigma = NULL, message = F) {
     y_hat,
     S,
     window = window,
-    deltas = seq(0, 0.3, by = 0.05),
+    deltas = seq(0, 1, by = 0.05),
     ensure_PD = TRUE,
     message = message
   )
@@ -231,7 +246,7 @@ handlers("txtprogressbar")  # or "progress" for a fancier bar
 
 plan(multisession, workers = parallel::detectCores() - 2)
 
-M <- 500
+M <- 200
 
 model_names <- c("base", "mint_shr", "mint_n", "mint_sample")
 SSE_cum <- setNames(
@@ -248,7 +263,7 @@ SSE_cum <- setNames(
 with_progress({
   p <- progressor(along = 1:M)  # auto sets steps = length
 
-  set.seed(1)
+  set.seed(11)
   res_list <- future_lapply(
     1:M, function(i) {
       p(message = sprintf("Sim %d", i))  # advances safely
