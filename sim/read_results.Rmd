@@ -28,9 +28,9 @@ library(purrr)
 # Read
 
 ```{r}
-file <- "S4-2-1_100"
-path <- paste("sim_results/", file, ".rds", sep = "")
-results <- readRDS(path)
+# file <- "S4-2-1_100"
+# path <- paste("sim_results/", file, ".rds", sep = "")
+# results <- readRDS(path)
 
 MSE <- results$MSE
 W_shr <- results$W_shr
@@ -194,7 +194,7 @@ hist(results$W_n[,2][cond])
 ```
 
 
-## When Mint_n diff
+## Mint_n diff
 
 ```{r}
 # read error list results
@@ -233,7 +233,7 @@ MSE_diff|>
 ```
 
 
-## When Mint_n is better
+## Mint_n is better
 
 ```{r}
 # when Mint_n is better than shrinkage at 1-step-ahead
@@ -249,17 +249,17 @@ cond_n_better <- map_lgl(
 ) 
 
 # ----- at specific level MSE
-at_level <- "^A"
-at_level <- grep(at_level, colnames(error_list[[1]]$mint_n), value = TRUE)
-
-cond_n_better <- map_lgl(
-  error_list, function(errs) {
-    e_n <- errs$mint_n[1,at_level]
-    e_shr <- errs$mint_shr[1,at_level]
-    
-    mean(e_n^2) > mean(e_shr^2)
-  }
-) 
+# at_level <- "^B"
+# at_level <- grep(at_level, colnames(error_list[[1]]$mint_n), value = TRUE)
+# 
+# cond_n_better <- map_lgl(
+#   error_list, function(errs) {
+#     e_n <- errs$mint_n[1,at_level]
+#     e_shr <- errs$mint_shr[1,at_level]
+#     
+#     mean(e_n^2) > mean(e_shr^2) * 1.2
+#   }
+# ) 
 
 # ----- plot
 sum(cond_n_better) / length(cond_n_better)
@@ -267,11 +267,11 @@ sum(cond_n_better) / length(cond_n_better)
 W_n_tibble <- cbind(results$W_n, n_better = cond_n_better) %>% 
   as_tibble() 
 
-# delta vs lambda
-W_n_tibble %>% 
-  ggplot(aes(x = lambda, y = delta)) +
-    geom_point(alpha = 0.3) +
-    facet_wrap(~ n_better)
+# # delta vs lambda
+# W_n_tibble %>% 
+#   ggplot(aes(x = lambda, y = delta)) +
+#     geom_point(alpha = 0.3) +
+#     facet_wrap(~ n_better)
 
 # delta dens
 W_n_tibble %>% 
@@ -285,6 +285,42 @@ W_n_tibble %>%
     geom_density(alpha = 0.3) +
     theme_minimal()
 
-plot_heatmap(results$Sigma %>% cov2cor())
-colnames(results$W_n) <- c("lambda", "delta")
+# plot_heatmap(results$Sigma %>% cov2cor())
+# colnames(results$W_n) <- c("lambda", "delta")
 ```
+
+
+### W1 hat
+
+```{r}
+W1_hat_n_better <- Reduce(
+  `+`, W1_hat_list[cond_n_better]
+) / sum(cond_n_better)
+
+W1_hat_n_worse <- Reduce(
+  `+`, W1_hat_list[!cond_n_better]
+) / sum(!cond_n_better)
+
+plot_heatmap(W1_hat_n_better %>% cov2cor())
+plot_heatmap(W1_hat_n_worse %>% cov2cor())
+```
+
+
+## Small deltas
+
+```{r}
+cond_small_delta <- results$W_n[,2] <= 0.1
+
+W1_hat_n_better <- Reduce(
+  `+`, W1_hat_list[cond_small_delta]
+) / sum(cond_small_delta)
+
+W1_hat_n_worse <- Reduce(
+  `+`, W1_hat_list[!cond_small_delta]
+) / sum(!cond_small_delta)
+
+plot_heatmap(W1_hat_n_better %>% cov2cor())
+plot_heatmap(W1_hat_n_worse %>% cov2cor())
+```
+
+
