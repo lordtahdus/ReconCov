@@ -20,7 +20,11 @@ plot_heatmap <- function(mat, is_unit_spherical = FALSE) {
     limit <- c(-max_val, max_val)
     midpoint <- 0
   }
-  ggplot(reshape2::melt(mat), aes(Var1, Var2, fill = value)) +
+  if (!is.null(colnames(mat)) || !is.null(rownames(mat))) {
+    colnames(mat) <- NULL
+    rownames(mat) <- NULL
+  }
+  ggplot(reshape2::melt(mat), aes(Var2, Var1, fill = value)) +
     geom_tile(color = "white") +
     scale_fill_gradient2(low = "blue", high = "red", mid = "white",
                          midpoint = midpoint, limit = limit, name = "Corr") +
