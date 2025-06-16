@@ -12,159 +12,182 @@ editor_options:
 library(tidyr)
 library(ggplot2)
 
-# library(fabletools)
-# library(fable)
-# library(feasts)
+library(vctrs)
+library(fabletools)
+library(fable)
+library(feasts)
 library(tsibble)
 library(dplyr)
 
 library(devtools)
 load_all()
 
-library(purrr)
+# library(purrr)
 ```
 
 # Load data
 
 ```{r}
-visnights <- readr::read_csv(here::here("playground/data/visnights_monthly.csv")) |>
+visnights_raw <- readr::read_csv(here::here("playground/data/visnights_monthly.csv")) |>
   mutate(Month = yearmonth(Month)) |>
   group_by(Month, Region) |>
   summarise(Nights = sum(Nights), .groups = "drop")
 ```
 
-```{r zones and states columns}
-# 1) All 76 bottom‐level Region names with their 3-letter codes
-region_codes <- tribble(
-  ~Region,                              ~code,
-  "Sydney",                             "AAA",
-  "Central Coast",                      "AAB",
-  "Hunter",                             "ABA",
-  "North Coast NSW",                    "ABB",
-  "Northern Rivers Tropical NSW",       "ABC",
-  "South Coast",                        "ACA",
-  "Snowy Mountains",                    "ADA",
-  "Capital Country",                    "ADB",
-  "The Murray",                         "ADC",
-  "Riverina",                           "ADD",
-  "Central NSW",                        "AEA",
-  "New England North West",             "AEB",
-  "Outback NSW",                        "AEC",
-  "Blue Mountains",                     "AED",
-  "Canberra",                           "AFA",
-  "Melbourne",                          "BAA",
-  "Peninsula",                          "BAB",
-  "Geelong",                            "BAC",
-  "Western",                            "BBA",
-  "Lakes",                              "BCA",
-  "Gippsland",                          "BCB",
-  "Phillip Island",                     "BCC",
-  "Central Murray",                     "BDA",
-  "Goulburn",                           "BDB",
-  "High Country",                       "BDC",
-  "Melbourne East",                     "BDD",
-  "Upper Yarra",                        "BDE",
-  "Murray East",                        "BDF",
-  "Wimmera+Mallee",                    "BEA",
-  "Western Grampians",                  "BEB",
-  "Bendigo Loddon",                     "BEC",
-  "Macedon",                            "BED",
-  "Spa Country",                        "BEE",
-  "Ballarat",                           "BEF",
-  "Central Highlands",                  "BEG",
-  "Gold Coast",                         "CAA",
-  "Brisbane",                           "CAB",
-  "Sunshine Coast",                     "CAC",
-  "Central Queensland",                 "CBA",
-  "Bundaberg",                          "CBB",
-  "Fraser Coast",                       "CBC",
-  "Mackay",                             "CBD",
-  "Whitsundays",                        "CCA",
-  "Northern",                           "CCB",
-  "Tropical North Queensland",          "CCC",
-  "Darling Downs",                      "CDA",
-  "Outback",                            "CDB",
-  "Adelaide",                           "DAA",
-  "Barossa",                            "DAB",
-  "Adelaide Hills",                     "DAC",
-  "Limestone Coast",                    "DBA",
-  "Fleurieu Peninsula",                 "DBB",
-  "Kangaroo Island",                    "DBC",
-  "Murraylands",                        "DCA",
-  "Riverland",                          "DCB",
-  "Clare Valley",                       "DCC",
-  "Flinders Range and Outback",         "DCD",
-  "Eyre Peninsula",                     "DDA",
-  "Yorke Peninsula",                    "DDB",
-  "Australia's Coral Coast",            "EAA",
-  "Experience Perth",                   "EAB",
-  "Australia's South West",             "EAC",
-  "Australia's North West",             "EBA",
-  "Australia's Golden Outback",         "EBB",
-  "Hobart and the South",               "FAA",
-  "East Coast",                         "FBA",
-  "Launceston, Tamar and the North",    "FBB",
-  "North West",                         "FCA",
-  "Wilderness West",                    "FCB",
-  "Darwin",                             "GAA",
-  "Kakadu Arnhem",                      "GAB",
-  "Katherine Daly",                     "GAC",
-  "Barkly",                             "GBA",
-  "Lasseter",                           "GBB",
-  "Alice Springs",                      "GBC",
-  "MacDonnell",                         "GBD"
+```{r states column}
+# Define a mapping of regions to states -----------
+state_map <- list(
+  NSW = c(
+    "Blue Mountains", "Central Coast", "Central NSW", "Goulburn",
+    "Hunter", "New England North West", "North Coast NSW", "Outback NSW",
+    "Riverina", "Snowy Mountains", "South Coast", "Sydney",
+    "Capital Country"
+  ),
+  VIC = c(
+    "Ballarat", "Bendigo Loddon", "Central Murray", "Geelong and the Bellarine",
+    "Gippsland", "Great Ocean Road", "High Country", "Macedon", "Mallee",
+    "Melbourne", "Melbourne East", "Murray East", "Peninsula", "Phillip Island",
+    "Spa Country", "The Murray", "Upper Yarra", "Western Grampians", "Wimmera"
+  ),
+  QLD = c(
+    "Brisbane", "Bundaberg", "Capricorn", "Fraser Coast", "Gladstone",
+    "Gold Coast", "Mackay", "Outback Queensland", "Southern Queensland Country",
+    "Sunshine Coast", "Townsville", "Tropical North Queensland",
+    "Whitsundays"
+  ),
+  SA = c(
+    "Adelaide", "Adelaide Hills", "Barossa", "Clare Valley", "Eyre Peninsula",
+    "Fleurieu Peninsula", "Flinders Ranges and Outback", "Kangaroo Island",
+    "Limestone Coast", "Murray River, Lakes and Coorong", "Riverland",
+    "Yorke Peninsula"
+  ),
+  WA = c(
+    "Australia's Coral Coast", "Australia's Golden Outback",
+    "Australia's North West", "Australia's South West", "Destination Perth"
+  ),
+  TAS = c(
+    "Central Highlands", "East Coast", "Hobart and the South",
+    "Launceston and the North", "Lakes", "North West", "West Coast"
+  ),
+  NT = c(
+    "Alice Springs", "Barkly", "Darwin", "Katherine Daly",
+    "Litchfield Kakadu Arnhem", "Lasseter", "MacDonnell"
+  ),
+  ACT = c(
+    "Canberra"
+  )
+)
+# -----------
+
+region_state_lookup <- tibble(
+  State  = rep(names(state_map), lengths(state_map)),
+  Region = unlist(state_map)
 )
 
-# 2) Maps from code → State / Zone names
-state_map <- c(
-  A = "NSW", B = "VIC", C = "QLD", D = "SA",
-  E = "WA",  F = "TAS", G = "NT"
-)
+visnights <- visnights_raw %>%
+  left_join(region_state_lookup, by = "Region") %>% 
+  select(Month, State, Region, Nights)
+```
 
-zone_map <- c(
-  AA = "Metro NSW",       AB = "Nth Coast NSW", AC = "Sth Coast NSW",
-  AD = "Sth NSW",         AE = "Nth NSW",        AF = "ACT",
-  BA = "Metro VIC",       BB = "West Coast VIC", BC = "East Coast VIC",
-  BD = "Nth East VIC",    BE = "Nth West VIC",
-  CA = "Metro QLD",       CB = "Central Coast QLD", CC = "Nth Coast QLD",
-  CD = "Inland QLD",
-  DA = "Metro SA",        DB = "Sth Coast SA",   DC = "Inland SA",
-  DD = "West Coast SA",
-  EA = "West Coast WA",   EB = "Nth WA",         EC = "Sth WA",
-  FA = "Sth TAS",         FB = "Nth East TAS",   FC = "Nth West TAS",
-  GA = "Nth Coast NT",    GB = "Central NT"
-)
+# Modelling
 
-# 3) Build the full lookup table
-region_lookup <- region_codes %>%
-  mutate(
-    state_code = substr(code, 1, 1),
-    zone_code  = substr(code, 1, 2),
-    State      = state_map[state_code],
-    Zone       = zone_map[zone_code]
-  ) %>%
-  select(Region, State, Zone)
+```{r}
+visnights_full <- visnights %>% 
+  as_tsibble(index = Month, key = c(State, Region)) %>% 
+  aggregate_key(State/Region, Nights = sum(Nights))
+```
 
-# 4) Join it onto your existing visnights tibble
-visnights2 <- visnights %>%
-  left_join(region_lookup, by = "Region")
+## Base fc
 
-# 5) Finally, check for any unmapped Region names
-unmapped <- visnights2 %>%
-  filter(is.na(State) | is.na(Zone)) %>%
-  distinct(Region)
+```{r}
+fit <- visnights_full |>
+  filter(year(Month) <= 2015) |>
+  model(base = ETS(Nights))
 
-if(nrow(unmapped)>0) {
-  message("These Region names need mapping or typo‐checking:\n",
-          paste(unmapped$Region, collapse = "\n"))
-} else {
-  message("All regions successfully mapped!")
-}
-
-# Now `visnights2` has your original columns plus `State` and `Zone`. 
-
-
+# base forecasts
+h <- 12
+fc <- fit %>% 
+  forecast(h = h)
 ```
 
 
+## S
+
+```{r S mat}
+key_data <- key_data(fit)
+agg_data <- fabletools:::build_key_data_smat(key_data)
+
+S <- matrix(0L, nrow = length(agg_data$agg), ncol = max(vec_c(!!!agg_data$agg)))
+S[length(agg_data$agg)*(vec_c(!!!agg_data$agg)-1) + rep(seq_along(agg_data$agg), lengths(agg_data$agg))] <- 1L
+
+# n_series <- length(agg_data$agg)
+# n_bottom <- length(agg_data$leaf)
+# S_dense <- matrix(0L, n_series, n_bottom)
+# for(i in seq_len(n_series)) {
+#   S_dense[i, agg_data$agg[[i]]] <- 1L
+# }
+
+# colnames
+colnames(S) <- key_data %>% 
+  filter(!is_aggregated(Region)) %>% 
+  pull(Region) %>% 
+  as.character()
+
+# rownames
+row_names <- key_data %>%
+  distinct(State, Region) %>%
+  mutate(
+    name = case_when(
+      Region == "<aggregated>" & State == "<aggregated>" ~ "Total",
+      Region == "<aggregated>" ~ as.character(State),
+      TRUE ~ as.character(Region)
+    )
+  )
+
+rownames(S) <- row_names$name %>% 
+  as.character()
+
+```
+
+## Get Data
+
+```{r y and yhat}
+# Get data from fit
+fit_augment <- fit %>% 
+  augment() %>% 
+  filter(.model == "base") %>%
+  left_join(row_names, by = c("State", "Region")) %>%
+  select(Month, State, Region, name, .fitted, Nights)
+
+y_hat <- fit_augment %>% 
+  as_tibble() %>%
+  select(.fitted, name, Month) %>%
+  pivot_wider(names_from = name, values_from = .fitted) %>% 
+  select(-Month) %>% 
+  as.matrix()
+
+y <- fit_augment %>% 
+  as_tibble() %>%
+  select(Nights, name, Month) %>%
+  pivot_wider(names_from = name, values_from = Nights) %>% 
+  select(-Month) %>% 
+  as.matrix()
+```
+
+```{r base_fc}
+base_fc <- fc %>% 
+  as_tibble() %>% 
+  left_join(row_names, by = c("State", "Region")) %>%
+  select(name, .mean, Month) %>%
+  pivot_wider(names_from = name, values_from = .mean) %>%
+  select(-Month) %>% 
+  as.matrix()
+```
+
+
+## Reconcile
+
+```{r}
+
+```
 
