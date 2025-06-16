@@ -8,7 +8,7 @@ editor_options:
 ```{r libs}
 # library(MASS)
 # library(matrixcalc)
-# library(Matrix)
+library(Matrix)
 library(tidyr)
 library(ggplot2)
 
@@ -17,6 +17,7 @@ library(fabletools)
 library(fable)
 library(feasts)
 library(tsibble)
+library(lubridate)
 library(dplyr)
 
 library(devtools)
@@ -100,8 +101,9 @@ visnights_full <- visnights %>%
 ## Base fc
 
 ```{r}
+year <- 2015
 fit <- visnights_full |>
-  filter(year(Month) <= 2015) |>
+  filter(year(Month) <= year) |>
   model(base = ETS(Nights))
 
 # base forecasts
@@ -184,10 +186,85 @@ base_fc <- fc %>%
   as.matrix()
 ```
 
+```{r}
+actual <- visnights_full %>% 
+  filter(year(Month) > year & year(Month) <= year +1) %>% 
+  as_tibble() %>% 
+  arrange(State, Region) %>%
+  left_join(row_names, by = c("State", "Region")) %>%
+  select(name, Nights, Month) %>%
+  pivot_wider(names_from = name, values_from = Nights) %>%
+  select(-Month) %>%
+  as.matrix()
+```
 
 ## Reconcile
 
-```{r}
+```{r cov ests}
+W_shr <- shrinkage_est(
+  y - y_hat
+)
 
+window <- round(dim(y)[1] * 0.7)
+W_n <- novelist_cv(
+  y,
+  y_hat,
+  S,
+  window = window,
+  deltas = seq(0, 1, by = 0.05),
+  ensure_PD = TRUE,
+  message = TRUE
+)
+```
+
+```{r recon}
+recon_mint_shr <- reconcile_mint(base_fc, S, W_shr$cov)
+recon_mint_n <- reconcile_mint(base_fc, S, W_n$cov)
+
+sample_cov <- compute_cov_matrix(y - y_hat, zero_mean = T)
+if (any(eigen(sample_cov)$values < 1e-8)) {
+  cat("Sample covariance for mint_sample is singular, using nearPD\n")
+  sample_cov <- nearPD(sample_cov)$mat
+}
+recon_mint_sample <- reconcile_mint(base_fc, S, sample_cov)
+```
+
+# Evaluation
+
+```{r}
+# fc %>% 
+#   accuracy(visnights_full, measures = list(RMSE = RMSE))
+# 
+# sqrt(colMeans((actual - base_fc)^2))
+
+error_sq <- list(
+  base = ((actual - base_fc)^2),
+  mint_shr = ((actual - recon_mint_shr)^2),
+  mint_n = ((actual - recon_mint_n)^2),
+  mint_sample = ((actual - recon_mint_sample)^2)
+)
+error_sq <- transform_sim_MSE(error_sq, F)
+
+
+```
+
+```{r}
+error_sq |>
+  group_by(series, h) |>
+  mutate(
+    base_MSE = MSE[.model == "base"]
+  ) |>
+  ungroup() |>
+  group_by(.model, h) |>
+  summarise(
+    MSE = mean(MSE),
+    base_MSE = mean(base_MSE),
+    pct_change = (MSE - base_MSE) / base_MSE * 100
+  ) |>
+  filter(h <=16) |>
+  ggplot(aes(x = h, y = pct_change, color = .model)) +
+    geom_line() +
+    labs(x = "Horizon", y = "% relative improvements in MSE") +
+    theme_minimal()
 ```
 
