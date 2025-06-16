@@ -1,0 +1,170 @@
+---
+title: "R Notebook"
+editor_options: 
+  chunk_output_type: console
+---
+
+
+```{r libs}
+# library(MASS)
+# library(matrixcalc)
+# library(Matrix)
+library(tidyr)
+library(ggplot2)
+
+# library(fabletools)
+# library(fable)
+# library(feasts)
+library(tsibble)
+library(dplyr)
+
+library(devtools)
+load_all()
+
+library(purrr)
+```
+
+# Load data
+
+```{r}
+visnights <- readr::read_csv(here::here("playground/data/visnights_monthly.csv")) |>
+  mutate(Month = yearmonth(Month)) |>
+  group_by(Month, Region) |>
+  summarise(Nights = sum(Nights), .groups = "drop")
+```
+
+```{r zones and states columns}
+# 1) All 76 bottom‐level Region names with their 3-letter codes
+region_codes <- tribble(
+  ~Region,                              ~code,
+  "Sydney",                             "AAA",
+  "Central Coast",                      "AAB",
+  "Hunter",                             "ABA",
+  "North Coast NSW",                    "ABB",
+  "Northern Rivers Tropical NSW",       "ABC",
+  "South Coast",                        "ACA",
+  "Snowy Mountains",                    "ADA",
+  "Capital Country",                    "ADB",
+  "The Murray",                         "ADC",
+  "Riverina",                           "ADD",
+  "Central NSW",                        "AEA",
+  "New England North West",             "AEB",
+  "Outback NSW",                        "AEC",
+  "Blue Mountains",                     "AED",
+  "Canberra",                           "AFA",
+  "Melbourne",                          "BAA",
+  "Peninsula",                          "BAB",
+  "Geelong",                            "BAC",
+  "Western",                            "BBA",
+  "Lakes",                              "BCA",
+  "Gippsland",                          "BCB",
+  "Phillip Island",                     "BCC",
+  "Central Murray",                     "BDA",
+  "Goulburn",                           "BDB",
+  "High Country",                       "BDC",
+  "Melbourne East",                     "BDD",
+  "Upper Yarra",                        "BDE",
+  "Murray East",                        "BDF",
+  "Wimmera+Mallee",                    "BEA",
+  "Western Grampians",                  "BEB",
+  "Bendigo Loddon",                     "BEC",
+  "Macedon",                            "BED",
+  "Spa Country",                        "BEE",
+  "Ballarat",                           "BEF",
+  "Central Highlands",                  "BEG",
+  "Gold Coast",                         "CAA",
+  "Brisbane",                           "CAB",
+  "Sunshine Coast",                     "CAC",
+  "Central Queensland",                 "CBA",
+  "Bundaberg",                          "CBB",
+  "Fraser Coast",                       "CBC",
+  "Mackay",                             "CBD",
+  "Whitsundays",                        "CCA",
+  "Northern",                           "CCB",
+  "Tropical North Queensland",          "CCC",
+  "Darling Downs",                      "CDA",
+  "Outback",                            "CDB",
+  "Adelaide",                           "DAA",
+  "Barossa",                            "DAB",
+  "Adelaide Hills",                     "DAC",
+  "Limestone Coast",                    "DBA",
+  "Fleurieu Peninsula",                 "DBB",
+  "Kangaroo Island",                    "DBC",
+  "Murraylands",                        "DCA",
+  "Riverland",                          "DCB",
+  "Clare Valley",                       "DCC",
+  "Flinders Range and Outback",         "DCD",
+  "Eyre Peninsula",                     "DDA",
+  "Yorke Peninsula",                    "DDB",
+  "Australia's Coral Coast",            "EAA",
+  "Experience Perth",                   "EAB",
+  "Australia's South West",             "EAC",
+  "Australia's North West",             "EBA",
+  "Australia's Golden Outback",         "EBB",
+  "Hobart and the South",               "FAA",
+  "East Coast",                         "FBA",
+  "Launceston, Tamar and the North",    "FBB",
+  "North West",                         "FCA",
+  "Wilderness West",                    "FCB",
+  "Darwin",                             "GAA",
+  "Kakadu Arnhem",                      "GAB",
+  "Katherine Daly",                     "GAC",
+  "Barkly",                             "GBA",
+  "Lasseter",                           "GBB",
+  "Alice Springs",                      "GBC",
+  "MacDonnell",                         "GBD"
+)
+
+# 2) Maps from code → State / Zone names
+state_map <- c(
+  A = "NSW", B = "VIC", C = "QLD", D = "SA",
+  E = "WA",  F = "TAS", G = "NT"
+)
+
+zone_map <- c(
+  AA = "Metro NSW",       AB = "Nth Coast NSW", AC = "Sth Coast NSW",
+  AD = "Sth NSW",         AE = "Nth NSW",        AF = "ACT",
+  BA = "Metro VIC",       BB = "West Coast VIC", BC = "East Coast VIC",
+  BD = "Nth East VIC",    BE = "Nth West VIC",
+  CA = "Metro QLD",       CB = "Central Coast QLD", CC = "Nth Coast QLD",
+  CD = "Inland QLD",
+  DA = "Metro SA",        DB = "Sth Coast SA",   DC = "Inland SA",
+  DD = "West Coast SA",
+  EA = "West Coast WA",   EB = "Nth WA",         EC = "Sth WA",
+  FA = "Sth TAS",         FB = "Nth East TAS",   FC = "Nth West TAS",
+  GA = "Nth Coast NT",    GB = "Central NT"
+)
+
+# 3) Build the full lookup table
+region_lookup <- region_codes %>%
+  mutate(
+    state_code = substr(code, 1, 1),
+    zone_code  = substr(code, 1, 2),
+    State      = state_map[state_code],
+    Zone       = zone_map[zone_code]
+  ) %>%
+  select(Region, State, Zone)
+
+# 4) Join it onto your existing visnights tibble
+visnights2 <- visnights %>%
+  left_join(region_lookup, by = "Region")
+
+# 5) Finally, check for any unmapped Region names
+unmapped <- visnights2 %>%
+  filter(is.na(State) | is.na(Zone)) %>%
+  distinct(Region)
+
+if(nrow(unmapped)>0) {
+  message("These Region names need mapping or typo‐checking:\n",
+          paste(unmapped$Region, collapse = "\n"))
+} else {
+  message("All regions successfully mapped!")
+}
+
+# Now `visnights2` has your original columns plus `State` and `Zone`. 
+
+
+```
+
+
+
