@@ -13,6 +13,24 @@ generate_cor(
   random_seed = NULL
 )
 }
+\arguments{
+\item{groups}{Integer vector specifying the number of series in each group}
+
+\item{rho}{Numeric vector of length \code{length(groups)} specifying the
+base correlation values for each group.}
+
+\item{delta}{Numeric, the correlation value for off-diagonal blocks (default is 0.15).}
+
+\item{epsilon}{Numeric, the scaling factor for noise added to the correlation matrix
+(default is 0.15).}
+
+\item{eidim}{Integer, the dimension of the noise space (default is 2).}
+
+\item{random_seed}{Optional integer for reproducibility.}
+}
+\value{
+A \eqn{p \times p} correlation matrix, where \eqn{p = \sum groups}.
+}
 \description{
 Start with constant correlations within each group (rhos) and between
 each group (delta). Then add random noise to all elements of the matrix, by

@@ -1,0 +1,296 @@
+---
+title: "R Notebook"
+editor_options: 
+  chunk_output_type: console
+---
+
+
+```{r libs}
+# library(MASS)
+# library(matrixcalc)
+# library(Matrix)
+library(tidyr)
+library(ggplot2)
+
+# library(fabletools)
+# library(fable)
+# library(feasts)
+library(tsibble)
+library(dplyr)
+
+library(devtools)
+load_all()
+
+library(purrr)
+```
+
+
+# Read
+
+```{r}
+# file <- "S4-2-1_100"
+# path <- paste("sim_results/", file, ".rds", sep = "")
+# results <- readRDS(path)
+# 
+# MSE <- results$MSE
+# W_shr <- results$W_shr
+# W_n <- results$W_n
+```
+
+# Inspect
+
+```{r}
+MSE_ts <- transform_sim_MSE(results$MSE, F)
+
+MSE_ts |> group_by(.model, h) |>
+  summarise(mse = mean(MSE)) |>
+  filter(h <= 2) |>
+  ggplot(aes(x = h, y = mse, color = .model)) +
+    geom_line() +
+    labs(x = "Horizon", y = "MSE") +
+    theme_minimal()
+
+# % improvements over base
+MSE_ts |>
+  group_by(series, h) |>
+  mutate(
+    base_MSE = MSE[.model == "base"]
+  ) |>
+  ungroup() |>
+  group_by(.model, h) |>
+  summarise(
+    MSE = mean(MSE),
+    base_MSE = mean(base_MSE),
+    pct_change = (MSE - base_MSE) / base_MSE * 100
+  ) |>
+  filter(h <=12) |>
+  ggplot(aes(x = h, y = pct_change, color = .model)) +
+    geom_line() +
+    labs(x = "Horizon", y = "% relative improvements in MSE") +
+    theme_minimal()
+
+```
+
+# By level analysis
+
+```{r}
+#TODO ...
+```
+
+
+# Compare between 2 simulations
+
+```{r}
+MSE1 <- transform_sim_MSE(sim1$MSE, F)
+MSE2 <- transform_sim_MSE(sim2$MSE, F)
+
+# ---- Add hierarchy level to MSE series ----
+hier_level <- MSE1$series |>
+  substring(1, 1) |>
+  unique() |> sort(decreasing = TRUE)
+
+MSE1 <- MSE1 %>% 
+  mutate(level = match(substring(series,1,1), hier_level))
+MSE2 <- MSE2 %>% 
+  mutate(level = match(substring(series,1,1), hier_level))
+
+MSE_full <- bind_rows(MSE1, MSE2, .id = "id")
+
+# plot by h
+MSE_full |> group_by(id, .model, h) |>
+  summarise(mse = mean(MSE)) |>
+  filter(h <=16) |>
+  ggplot(aes(x = h, y = mse, color = .model)) +
+    geom_line() +
+    facet_wrap(~id) +
+    labs(x = "Horizon", y = "MSE") +
+    theme_minimal()
+
+# plot by h and hier-level
+MSE_full |> 
+  group_by(id, .model, h, level) |>
+  summarise(MSE = mean(MSE)) |>
+  
+  group_by(id, level, h) |>
+  mutate(
+    base_MSE = MSE[.model == "base"]
+  ) |>
+  ungroup() |>
+  group_by(id, level, .model, h) |>
+  summarise(
+    MSE = mean(MSE),
+    base_MSE = mean(base_MSE),
+    pct_change = (MSE - base_MSE) / base_MSE * 100
+  ) |>
+  
+  filter(h <= 4) |>
+  mutate(facet_id = paste0(id, level)) |>
+  ggplot(aes(x = h, y = pct_change, color = .model)) +
+    geom_line() +
+    facet_wrap(~ facet_id, nrow=2, scales = "free_y") +
+    labs(x = "Horizon", y = "MSE") +
+    theme_minimal()
+# plot by h and hier-level
+  
+```
+
+
+```{r}
+# pct change
+
+MSE_full |>
+  group_by(id, series, h) |>
+  mutate(
+    base_MSE = MSE[.model == "base"]
+  ) |>
+  ungroup() |>
+  group_by(id, .model, h) |>
+  summarise(
+    MSE = mean(MSE),
+    base_MSE = mean(base_MSE),
+    pct_change = (MSE - base_MSE) / base_MSE * 100
+  ) |>
+  mutate(id = ifelse(id == 1, "T = 100", "T = 300")) |>
+  filter(h <=16) |>
+  ggplot(aes(x = h, y = pct_change, color = .model)) +
+    geom_line() +
+    facet_wrap(~id) +
+    labs(x = "Horizon", y = "% relative improvements in MSE") +
+    theme_minimal()
+```
+
+
+
+# Inspect NOVELSIT
+
+```{r}
+# params from shrinkage and novelist
+results <- sim1
+
+plot(
+  results$W_shr,
+  results$W_n[,1]
+)
+
+# filter diff
+cond <- results$W_shr != results$W_n[,1]
+# cond <- results$W_shr != results$W_n[,1] & results$W_n[,1] < 0.3
+
+cat("Similarity %", sum(!cond)/length(results$W_shr)) # proportion of similarity in lambda
+
+# lambdas given thresholded != identity
+plot(
+  results$W_shr[cond],
+  results$W_n[,1][cond]
+); abline(a = 0, b = 1, col = "red", lty = 1)
+
+# lambda vs delta NOVELIST
+plot(results$W_n)
+# given thresholded != identity
+plot(
+  results$W_n[,1][cond],
+  results$W_n[,2][cond]
+)
+
+hist(results$W_n[,2])
+hist(results$W_n[,2][cond])
+```
+
+
+## When Mint_n diff
+
+```{r}
+# read error list results
+
+error_diff <- error_list[cond]
+model_names <- names(error_list[[1]])
+SSE_cum_diff <- setNames(
+  lapply(model_names, function(name)
+    Reduce(`+`, lapply(error_diff, `[[`, name))
+  ),
+  model_names
+)
+MSE_diff <- lapply(SSE_cum_diff, function(mat) mat / length(error_diff))
+
+MSE_diff <- transform_sim_MSE(MSE_diff, F)
+
+# % improvement only for diff NOVELIST
+MSE_diff|>
+  group_by(series, h) |>
+  mutate(
+    base_MSE = MSE[.model == "base"]
+  ) |>
+  ungroup() |>
+  group_by(.model, h) |>
+  summarise(
+    MSE = mean(MSE),
+    base_MSE = mean(base_MSE),
+    pct_change = (MSE - base_MSE) / base_MSE * 100
+  ) |>
+  filter(h <=16) |>
+  ggplot(aes(x = h, y = pct_change, color = .model)) +
+    geom_line() +
+    labs(x = "Horizon", y = "% relative improvements in MSE") +
+    theme_minimal()
+
+```
+
+
+## When Mint_n is better
+
+```{r}
+# when Mint_n is better than shrinkage at 1-step-ahead
+
+# ----- general MSE
+cond_n_better <- map_lgl(
+  error_list, function(errs) {
+    e_n <- errs$mint_n[1,]
+    e_shr <- errs$mint_shr[1,]
+    
+    mean(e_n^2) > mean(e_shr^2) * 1.5
+  }
+) 
+
+# ----- at specific level MSE
+at_level <- "^A"
+at_level <- grep(at_level, colnames(error_list[[1]]$mint_n), value = TRUE)
+
+cond_n_better <- map_lgl(
+  error_list, function(errs) {
+    e_n <- errs$mint_n[1,at_level]
+    e_shr <- errs$mint_shr[1,at_level]
+    
+    mean(e_n^2) > mean(e_shr^2)
+  }
+) 
+
+# ----- plot
+sum(cond_n_better) / length(cond_n_better)
+
+W_n_tibble <- cbind(sim1$W_n, n_better = cond_n_better) %>% 
+  as_tibble() 
+
+# delta vs lambda
+W_n_tibble %>% 
+  ggplot(aes(x = lambda, y = delta)) +
+    geom_point(alpha = 0.3) +
+    facet_wrap(~ n_better)
+
+
+# delta dens
+W_n_tibble %>% 
+  ggplot(aes(x = delta, fill = n_better, group = n_better)) +
+    geom_density(alpha = 0.3) +
+    theme_minimal()
+
+# lambda dens
+W_n_tibble %>% 
+  ggplot(aes(x = lambda, fill = n_better, group = n_better)) +
+    geom_density(alpha = 0.3) +
+    theme_minimal()
+
+
+
+```
+
+

@@ -16,24 +16,30 @@ load_all()
 
 # Parameters -----------------------------------
 
-groups <- c(2,2)
-# groups <- c(4,4,4,4)
+# groups <- c(2,2)
+groups <- c(4,4,4,4)
 # groups <- c(6,6,6,6,6,6)
 
-T <- 316
-h <- 16
+T <- 58
+h <- 8
 Tsplit <- T - h
 
+# structure <- list(
+#   groups,
+#   as.list(seq(1,length(groups))),
+#   list(c(1,2))
+# )
 structure <- list(
   groups,
   as.list(seq(1,length(groups))),
-  list(c(1,2))
+  list(c(1,2,3,4))
 )
 # structure <- list(
 #   groups,
 #   as.list(seq(1,length(groups))),
-#   list(c(1,2,3), c(4,5,6)),
-#   list(c(1,2))
+#   # list(c(1,2,3), c(4,5,6)),
+#   # list(c(1,2))
+#   list(1:6)
 # )
 
 (S <- construct_S(
@@ -45,63 +51,94 @@ order_S <- rownames(S)
 
 # ranges for coefs in VAR
 diag_range <- c(0.4, 0.8)
-offdiag_range <- c(-0.4, 0.4)
+offdiag_range <- c(-0.6, 0.6)
 
-
+## VAR(1) block -------------------------
 A <- generate_block_diag(
   groups = groups,
   diag_range = diag_range,
   offdiag_range = offdiag_range,
-  message = message,
+  stationary = FALSE,
 )$A
 
-rho <- runif(length(groups), 0.6, 0.9)
+plot_heatmap(A, TRUE)
+A <- edit(A) ;colnames(A) <- NULL # edit manually
+
+# check stationary
+for (block in seq_along(groups)) {
+  size <- groups[block]
+  index <- seq(sum(groups[1:(block-1)]) + 1, sum(groups[1:block]))
+  print(
+    any(abs(A[block, block]) > 0.9)
+  )
+}
+
+
+## Sigma ---------------------------------
+rho <- runif(length(groups), 0.5, 0.6)
 Sigma <- generate_cor(
   groups = groups,
   rho = rho,
-  delta = min(rho) * 0.5,
+  delta = min(rho) * 0.8,
   # delta = 0.15,
-  epsilon = (1-max(rho)) * 0.5,
+  epsilon = (1-max(rho))*0.9,
   # epsilon = 0.15,
   eidim = length(groups)
 )
+
+plot_heatmap(Sigma, TRUE)
+
+Sigma <- edit(Sigma) ; colnames(Sigma) <- NULL # edit manually
+Sigma[upper.tri(Sigma)] <- t(Sigma)[upper.tri(Sigma)]
+any((eigen(Sigma)$values) < 1e-8)
+
 # convert to cov using random sd
-Sigma <- convert_cor2cov(Sigma)
+Sigma <- convert_cor2cov(
+  Sigma,
+  stdevs = runif(nrow(Sigma), 0.5*sqrt(2), 2*sqrt(6))
+)
 # flip signs
 V <- diag(x = sample(c(-1,1), size = sum(groups), replace = TRUE))
 Sigma <- V %*% Sigma %*% V
 
+plot_heatmap(Sigma %>% cov2cor(), TRUE)
+
+### modify a range of values---------
+R <- cov2cor(Sigma)
+# scale down by x
+lower <- 0.66
+upper <- 0.69
+R[lower < abs(R) & abs(R) < upper] <-
+  R[lower < abs(R) & abs(R) < upper] * 0.05   # scale x
+
+plot_heatmap(R)
+any((eigen(R)$values) < 1e-8)
+R <- nearPD(R)$mat %>% as.matrix()
+D <- diag(sqrt(diag(Sigma)))
+Sigma <- D %*% R %*% D
+
+### formulate as NOVELIST ------------
+delta <- 0.5
+lambda <- 0.2
+R <- cov2cor(Sigma)
+R_thresh <- sign(R) * pmax(abs(R) - delta, 0)
+diag(R_thresh) <- 1
+R_novelist <- lambda * R_thresh + (1 - lambda) * R
+D <- diag(sqrt(diag(Sigma)))
+Sigma <- D %*% R_novelist %*% D
+
+
+# temporary save
+params <- list(
+  groups = groups,
+  S      = S,
+  A      = A,
+  Sigma  = Sigma
+)
+saveRDS(params, "sim/temp_params.rds")
 
 # Function -----------------------------------
 run <- function(A = NULL, Sigma = NULL, message = F) {
-
-  # # # # # #
-  # Generate parameters for simulating bottom series
-  # if (is.null(A) & is.null(Sigma)) {
-  #   A <- generate_block_diag(
-  #     groups = groups,
-  #     diag_range = diag_range,
-  #     offdiag_range = offdiag_range,
-  #     message = message,
-  #   )$A
-  #
-  #   rho <- runif(length(groups), 0.6, 0.9)
-  #   Sigma <- generate_cor(
-  #     groups = groups,
-  #     rho = rho,
-  #     delta = min(rho) * 0.5,
-  #     # delta = 0.15,
-  #     epsilon = (1-max(rho)) * 0.5,
-  #     # epsilon = 0.15,
-  #     eidim = length(groups)
-  #   )
-  #   # convert to cov using random sd
-  #   Sigma <- convert_cor2cov(Sigma)
-  #   # flip signs
-  #   V <- diag(x = sample(c(-1,1), size = sum(groups), replace = TRUE))
-  #   Sigma <- V %*% Sigma %*% V
-  # }
-
 
   # # # # # #
   # generate bottom-up series and transforming data
@@ -159,12 +196,15 @@ run <- function(A = NULL, Sigma = NULL, message = F) {
   W_shr <- shrinkage_est(
     y - y_hat
   )
+  window <- round(Tsplit * 0.7)
   W_n <- novelist_cv(
     y,
     y_hat,
     S,
-    window = round(Tsplit/2),
-    message = FALSE
+    window = window,
+    deltas = seq(0, 1, by = 0.05),
+    ensure_PD = TRUE,
+    message = message
   )
 
   # # # # # #
@@ -191,7 +231,8 @@ run <- function(A = NULL, Sigma = NULL, message = F) {
   list(
     SSE = SSE,
     W_shr = W_shr$lambda,
-    W_n = c(W_n$lambda, W_n$delta)
+    W_n = c(W_n$lambda, W_n$delta),
+    W1_hat = compute_cov_matrix(y - y_hat, zero_mean = TRUE)
   )
 }
 
@@ -200,8 +241,12 @@ run <- function(A = NULL, Sigma = NULL, message = F) {
 library(future.apply)
 library(progressr)
 
-M <- 10000
+handlers(global = TRUE) # Setup progress bar handler
+handlers("txtprogressbar")  # or "progress" for a fancier bar
 
+plan(multisession, workers = parallel::detectCores() - 2)
+
+M <- 200
 
 model_names <- c("base", "mint_shr", "mint_n", "mint_sample")
 SSE_cum <- setNames(
@@ -212,22 +257,17 @@ SSE_cum <- setNames(
 )
 
 # PARALLEL
-
-handlers(global = TRUE) # Setup progress bar handler
-handlers("txtprogressbar")  # or "progress" for a fancier bar
-
-plan(multisession, workers = parallel::detectCores() - 2)
-
 # res_list <- future_lapply(seq_len(M), function(i) run(), future.seed=TRUE)
 
 # parallel with progress bar
 with_progress({
   p <- progressor(along = 1:M)  # auto sets steps = length
 
+  set.seed(11)
   res_list <- future_lapply(
     1:M, function(i) {
       p(message = sprintf("Sim %d", i))  # advances safely
-      run(A, Sigma)
+      run(A, Sigma, message = FALSE)
     },
     future.seed=TRUE
   )
@@ -240,11 +280,11 @@ res_list[[1]]$SSE |> names() == SSE_cum |> names()
 SSE_cum <- Reduce(function(acc, res) Map(`+`, acc, res$SSE),
                       res_list, init = SSE_cum)
 W_shr_store <- sapply(res_list, `[[`, "W_shr")
-W_n_store <- t(sapply(res_list, `[[`, "W_n"))
+W_n_store <- t(sapply(res_list, `[[`, "W_n")) ; colnames(W_n_store) <- c("lambda", "delta")
 
 MSE <- lapply(SSE_cum, function(mat) mat / M)
 
-plan(sequential) # Reset to sequential
+# plan(sequential) # Reset to sequential
 
 
 # Warning message:
@@ -284,7 +324,7 @@ plan(sequential) # Reset to sequential
 
 
 # Combine all your outputs into a named list
-sim_results <- list(
+results <- list(
   groups = groups,
   S      = S,
   A      = A,
@@ -293,6 +333,8 @@ sim_results <- list(
   W_shr  = W_shr_store,       # can be a list of matrices or one matrix
   W_n    = W_n_store          # same
 )
+error_list <- purrr::map(res_list, "SSE")
+W1_hat_list <- purrr::map(res_list, "W1_hat")
 
 # Save to file
 S_string <- paste0("S", sum(groups))
@@ -302,14 +344,14 @@ for (i in 2:length(structure)) {
 file <- paste0(
   S_string,
   "_T", T-h,
-  "_M", M
+  "_M", M,
+  "_run3"
 )
-saveRDS(sim_results, file = paste("sim/sim_results/", file, ".rds", sep = ""))
+saveRDS(results, file = paste("sim/sim_results/", file, ".rds", sep = ""))
 
-error_list <- purrr::map(res_list, "SSE")
 saveRDS(error_list, file = paste("sim/sim_results/", file, "_errorlist.rds", sep = ""))
 
-
+saveRDS(W1_hat_list, file = paste("sim/sim_results/", file, "_W1hat.rds", sep = ""))
 
 # Inspect --------------------
 
@@ -318,16 +360,7 @@ library(purrr)
 
 MSE
 
-MSE_ts <- imap_dfr(MSE, function(mat, model_name) {
-  as_tibble(mat) %>%
-    mutate(h = row_number()) %>%
-    pivot_longer(cols = -h, names_to = "series", values_to = "MSE") %>%
-    mutate(
-      .model = model_name,
-    ) %>%
-    select(.model, series, h, MSE)
-}) %>%
-  as_tsibble(key = c(.model, series), index = h)
+MSE_ts <- transform_sim_MSE(MSE)
 
 MSE_ts |> group_by(.model) |> index_by(h) |>
   summarise(mse = mean(MSE)) |>

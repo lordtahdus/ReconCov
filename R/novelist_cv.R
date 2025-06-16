@@ -78,7 +78,7 @@ novelist_cv <- function(
         ensure_PD = ensure_PD
       )$cov
 
-      if (any(eigen(cov_novelist)$values <= 1e-8)) {
+      if (any(eigen(cov_novelist)$values <= 1e-12)) {
         stop("The covariance matrix is not positive definite, cannot reconcile. Try ensure_PD = T")
       }
 
