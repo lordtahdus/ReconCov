@@ -4,6 +4,7 @@
 #' @param S A matrix of reconciliation weights (dim p by b, b is number of bottom series).
 #' @param W A covariance matrix of h-step base forecast errors (dim p by p).
 #'
+#' @export
 reconcile_mint <- function(base_forecasts, S, W) {
 
   R <- t(S)%*%solve(W)
