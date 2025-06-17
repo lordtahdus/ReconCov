@@ -90,6 +90,17 @@ visnights <- visnights_raw %>%
   select(Month, State, Region, Nights)
 ```
 
+```{r}
+visnights %>% 
+  group_by(Month, State) %>%
+  summarise(Nights = sum(Nights), .groups = "drop") %>%
+  ggplot(aes(x = Month, y = Nights, color = State)) +
+    geom_line() +
+    guides(color = "none") +
+    theme_minimal()
+```
+
+
 # Modelling
 
 ```{r}
@@ -98,12 +109,13 @@ visnights_full <- visnights %>%
   aggregate_key(State/Region, Nights = sum(Nights))
 ```
 
+
 ## Base fc
 
 ```{r}
-year <- 2015
+year_filter <- 2016
 fit <- visnights_full |>
-  filter(year(Month) <= year) |>
+  filter(year(Month) <= year_filter) |>
   model(base = ETS(Nights))
 
 # base forecasts
@@ -266,5 +278,154 @@ error_sq |>
     geom_line() +
     labs(x = "Horizon", y = "% relative improvements in MSE") +
     theme_minimal()
+```
+
+# CV Parallel
+
+## run
+
+```{r}
+run <- function(data, S) {
+  
+  fit <- data |>
+    model(base = ETS(Nights))
+  
+  # base forecasts
+  h <- 12
+  fc <- fit %>% 
+    forecast(h = h)
+  
+  # Get data from fit
+  fit_augment <- fit %>% 
+    augment() %>% 
+    filter(.model == "base") %>%
+    left_join(row_names, by = c("State", "Region")) %>%
+    select(Month, State, Region, name, .fitted, Nights)
+  
+  y_hat <- fit_augment %>% 
+    as_tibble() %>%
+    select(.fitted, name, Month) %>%
+    pivot_wider(names_from = name, values_from = .fitted) %>% 
+    select(-Month) %>% 
+    as.matrix()
+  
+  y <- fit_augment %>% 
+    as_tibble() %>%
+    select(Nights, name, Month) %>%
+    pivot_wider(names_from = name, values_from = Nights) %>% 
+    select(-Month) %>% 
+    as.matrix()
+  
+  # Get base forecasts
+  base_fc <- fc %>% 
+    as_tibble() %>% 
+    left_join(row_names, by = c("State", "Region")) %>%
+    select(name, .mean, Month) %>%
+    pivot_wider(names_from = name, values_from = .mean) %>%
+    select(-Month) %>% 
+    as.matrix()
+  
+  # Get actual values
+  actual <- visnights_full %>% 
+    filter(year(Month) > year & year(Month) <= year +1) %>% 
+    as_tibble() %>% 
+    arrange(State, Region) %>%
+    left_join(row_names, by = c("State", "Region")) %>%
+    select(name, Nights, Month) %>%
+    pivot_wider(names_from = name, values_from = Nights) %>%
+    select(-Month) %>%
+    as.matrix()
+  
+  # Cov estimators
+  W_shr <- shrinkage_est(
+    y - y_hat
+  )
+  
+  window <- round(dim(y)[1] * 0.7)
+  W_n <- novelist_cv(
+    y,
+    y_hat,
+    S,
+    window = window,
+    deltas = seq(0, 1, by = 0.05),
+    ensure_PD = TRUE,
+    message = TRUE
+  )
+  
+  # Reconcile
+  recon_mint_shr <- reconcile_mint(base_fc, S, W_shr$cov)
+  recon_mint_n <- reconcile_mint(base_fc, S, W_n$cov)
+  
+  sample_cov <- compute_cov_matrix(y - y_hat, zero_mean = T)
+  if (any(eigen(sample_cov)$values < 1e-8)) {
+    cat("Sample covariance for mint_sample is singular, using nearPD\n")
+    sample_cov <- nearPD(sample_cov)$mat
+  }
+  recon_mint_sample <- reconcile_mint(base_fc, S, sample_cov)
+  
+  e2 <- list(
+    base = ((actual - base_fc)^2),
+    mint_shr = ((actual - recon_mint_shr)^2),
+    mint_n = ((actual - recon_mint_n)^2),
+    mint_sample = ((actual - recon_mint_sample)^2)
+  )
+  
+  return(list(
+    e2 = e2,
+    W_shr = W_shr$lambda,
+    W_n = c(W_n$lambda, W_n$delta)
+  ))
+}
+```
+
+## Parallel
+
+```{r}
+library(future.apply)
+library(progressr)
+
+handlers(global = TRUE) # Setup progress bar handler
+handlers("txtprogressbar")  # or "progress" for a fancier bar
+
+plan(multisession, workers = parallel::detectCores() - 2)
+
+
+model_names <- c("base", "mint_shr", "mint_n", "mint_sample")
+SSE_cum <- setNames(
+  lapply(model_names, function(name) {
+    matrix(0, h, length(rownames(S)), dimnames = list(1:h, rownames(S)))
+  }),
+  model_names
+)
+
+# moving 1 month forward
+start_date <- visnights_full$Month[1]
+end_date <- yearmonth("2015-01")
+M <- 48
+seq_dates <- list(
+  start = start_date + 0:(M-1),
+  end = end_date + 0:(M-1)
+)
+
+# parallel with progress bar
+with_progress({
+  p <- progressor(along = 1:M)  # auto sets steps = length
+  
+  result_list <- future_lapply(
+    1:M, 
+    function(i) {
+      p(message = sprintf("Sim %d", i))  # advances safely
+      
+      start <- seq_dates$start[i]
+      end <- seq_dates$end[i]
+      run(
+        visnights_full %>% 
+          filter(Month >= start & Month <= end),
+        S
+      )
+    },
+    future.seed=TRUE
+  )
+})
 ```
 
