@@ -285,9 +285,10 @@ error_sq |>
 ## run
 
 ```{r}
-run <- function(data, S) {
+run <- function(data, start, end, S) {
   
   fit <- data |>
+    filter(Month >= start & Month <= end) |>
     model(base = ETS(Nights))
   
   # base forecasts
@@ -326,8 +327,8 @@ run <- function(data, S) {
     as.matrix()
   
   # Get actual values
-  actual <- visnights_full %>% 
-    filter(year(Month) > year & year(Month) <= year +1) %>% 
+  actual <- data %>% 
+    filter(Month > end & Month <= end + 11) %>% 
     as_tibble() %>% 
     arrange(State, Region) %>%
     left_join(row_names, by = c("State", "Region")) %>%
@@ -401,7 +402,7 @@ SSE_cum <- setNames(
 # moving 1 month forward
 start_date <- visnights_full$Month[1]
 end_date <- yearmonth("2015-01")
-M <- 48
+M <- 4
 seq_dates <- list(
   start = start_date + 0:(M-1),
   end = end_date + 0:(M-1)
@@ -419,8 +420,9 @@ with_progress({
       start <- seq_dates$start[i]
       end <- seq_dates$end[i]
       run(
-        visnights_full %>% 
-          filter(Month >= start & Month <= end),
+        visnights_full,
+        start,
+        end,
         S
       )
     },
