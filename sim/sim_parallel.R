@@ -17,23 +17,24 @@ load_all()
 # Parameters -----------------------------------
 
 # groups <- c(2,2)
-groups <- c(4,4,4,4)
+# groups <- c(4,4,4,4)
 # groups <- c(6,6,6,6,6,6)
+groups <- c(50,50)
 
-T <- 58
-h <- 8
+T <- 104
+h <- 4
 Tsplit <- T - h
 
-# structure <- list(
-#   groups,
-#   as.list(seq(1,length(groups))),
-#   list(c(1,2))
-# )
 structure <- list(
   groups,
   as.list(seq(1,length(groups))),
-  list(c(1,2,3,4))
+  list(c(1,2))
 )
+# structure <- list(
+#   groups,
+#   as.list(seq(1,length(groups))),
+#   list(c(1,2,3,4))
+# )
 # structure <- list(
 #   groups,
 #   as.list(seq(1,length(groups))),
@@ -51,7 +52,7 @@ order_S <- rownames(S)
 
 # ranges for coefs in VAR
 diag_range <- c(0.4, 0.8)
-offdiag_range <- c(-0.6, 0.6)
+offdiag_range <- c(-0.4, 0.4)
 
 ## VAR(1) block -------------------------
 A <- generate_block_diag(
@@ -75,13 +76,13 @@ for (block in seq_along(groups)) {
 
 
 ## Sigma ---------------------------------
-rho <- runif(length(groups), 0.5, 0.6)
+rho <- runif(length(groups), 0.5, 0.8)
 Sigma <- generate_cor(
   groups = groups,
   rho = rho,
-  delta = min(rho) * 0.8,
+  delta = min(rho) * 0.5,
   # delta = 0.15,
-  epsilon = (1-max(rho))*0.9,
+  epsilon = (1-max(rho))*0.5,
   # epsilon = 0.15,
   eidim = length(groups)
 )
@@ -95,7 +96,7 @@ any((eigen(Sigma)$values) < 1e-8)
 # convert to cov using random sd
 Sigma <- convert_cor2cov(
   Sigma,
-  stdevs = runif(nrow(Sigma), 0.5*sqrt(2), 2*sqrt(6))
+  stdevs = runif(nrow(Sigma), 1*sqrt(2), 2*sqrt(3))
 )
 # flip signs
 V <- diag(x = sample(c(-1,1), size = sum(groups), replace = TRUE))
@@ -219,13 +220,16 @@ run <- function(A = NULL, Sigma = NULL, message = F) {
   }
   recon_mint_sample <- reconcile_mint(base_fc, S, sample_cov)
 
+  recon_mint_pop <- reconcile_mint(base_fc, S, Sigma)
+
   # # # # # #
   # Return
   SSE <- list(
     base = ((actual - base_fc)^2),
     mint_shr = ((actual - recon_mint_shr)^2),
     mint_n = ((actual - recon_mint_n)^2),
-    mint_sample = ((actual - recon_mint_sample)^2)
+    mint_sample = ((actual - recon_mint_sample)^2),
+    mint_pop = ((actual - recon_mint_pop)^2)
   )
 
   list(
@@ -248,7 +252,7 @@ plan(multisession, workers = parallel::detectCores() - 2)
 
 M <- 200
 
-model_names <- c("base", "mint_shr", "mint_n", "mint_sample")
+model_names <- c("base", "mint_shr", "mint_n", "mint_sample", "mint_pop")
 SSE_cum <- setNames(
   lapply(model_names, function(name) {
     matrix(0, h, length(order_S), dimnames = list(1:h, order_S))
@@ -263,7 +267,7 @@ SSE_cum <- setNames(
 with_progress({
   p <- progressor(along = 1:M)  # auto sets steps = length
 
-  set.seed(11)
+  set.seed(1)
   res_list <- future_lapply(
     1:M, function(i) {
       p(message = sprintf("Sim %d", i))  # advances safely

@@ -113,7 +113,7 @@ visnights_full <- visnights %>%
 ## Base fc
 
 ```{r}
-year_filter <- 2016
+year_filter <- 2015
 fit <- visnights_full |>
   filter(year(Month) <= year_filter) |>
   model(base = ETS(Nights))
@@ -200,7 +200,7 @@ base_fc <- fc %>%
 
 ```{r}
 actual <- visnights_full %>% 
-  filter(year(Month) > year & year(Month) <= year +1) %>% 
+  filter(year(Month) > year_filter & year(Month) <= year_filter +1) %>% 
   as_tibble() %>% 
   arrange(State, Region) %>%
   left_join(row_names, by = c("State", "Region")) %>%
@@ -217,7 +217,7 @@ W_shr <- shrinkage_est(
   y - y_hat
 )
 
-window <- round(dim(y)[1] * 0.7)
+window <- round(dim(y)[1] * 0.5)
 W_n <- novelist_cv(
   y,
   y_hat,
@@ -431,7 +431,7 @@ with_progress({
 })
 
 result_list <- future_lapply(
-  1:M, 
+  1:4, 
   function(i) {
     start <- seq_dates$start[i]
     end <- seq_dates$end[i]
