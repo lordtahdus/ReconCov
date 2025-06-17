@@ -342,7 +342,7 @@ run <- function(data, start, end, S) {
     y - y_hat
   )
   
-  window <- round(dim(y)[1] * 0.7)
+  window <- round(dim(y)[1] * 0.66)
   W_n <- novelist_cv(
     y,
     y_hat,
@@ -429,5 +429,20 @@ with_progress({
     future.seed=TRUE
   )
 })
+
+result_list <- future_lapply(
+  1:M, 
+  function(i) {
+    start <- seq_dates$start[i]
+    end <- seq_dates$end[i]
+    run(
+      visnights_full,
+      start,
+      end,
+      S
+    )
+  },
+  future.seed=TRUE
+)
 ```
 

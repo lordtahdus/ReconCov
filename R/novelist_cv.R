@@ -79,7 +79,8 @@ novelist_cv <- function(
       )$cov
 
       if (any(eigen(cov_novelist)$values <= 1e-12)) {
-        stop("The covariance matrix is not positive definite, cannot reconcile. Try ensure_PD = T")
+        stop(sort(eigen(cov_novelist)$values)[1])
+        # stop("The covariance matrix is not positive definite, cannot reconcile. Try ensure_PD = T")
       }
 
       recon_fc <- base_fc_next
