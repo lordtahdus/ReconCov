@@ -220,7 +220,8 @@ run <- function(A = NULL, Sigma = NULL, message = F) {
   }
   recon_mint_sample <- reconcile_mint(base_fc, S, sample_cov)
 
-  recon_mint_pop <- reconcile_mint(base_fc, S, Sigma)
+  Sigma_true <- t(S) %*% Sigma %*% S
+  recon_mint_true <- reconcile_mint(base_fc, S, Sigma_true)
 
   # # # # # #
   # Return
@@ -229,7 +230,7 @@ run <- function(A = NULL, Sigma = NULL, message = F) {
     mint_shr = ((actual - recon_mint_shr)^2),
     mint_n = ((actual - recon_mint_n)^2),
     mint_sample = ((actual - recon_mint_sample)^2),
-    mint_pop = ((actual - recon_mint_pop)^2)
+    mint_true = ((actual - recon_mint_true)^2)
   )
 
   list(
@@ -252,7 +253,7 @@ plan(multisession, workers = parallel::detectCores() - 2)
 
 M <- 200
 
-model_names <- c("base", "mint_shr", "mint_n", "mint_sample", "mint_pop")
+model_names <- c("base", "mint_shr", "mint_n", "mint_sample", "mint_true")
 SSE_cum <- setNames(
   lapply(model_names, function(name) {
     matrix(0, h, length(order_S), dimnames = list(1:h, order_S))
@@ -288,7 +289,7 @@ W_n_store <- t(sapply(res_list, `[[`, "W_n")) ; colnames(W_n_store) <- c("lambda
 
 MSE <- lapply(SSE_cum, function(mat) mat / M)
 
-# plan(sequential) # Reset to sequential
+plan(sequential) # Reset to sequential
 
 
 # Warning message:
