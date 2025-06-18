@@ -21,7 +21,7 @@ load_all()
 # groups <- c(6,6,6,6,6,6)
 groups <- c(50,50)
 
-T <- 104
+T <- 54
 h <- 4
 Tsplit <- T - h
 
@@ -42,6 +42,12 @@ structure <- list(
 #   # list(c(1,2))
 #   list(1:6)
 # )
+structure <- list(
+  rep(10,10),
+  as.list(1:10),
+  list(1:4, 5:6, 7:10),
+  list(1:3)
+)
 
 (S <- construct_S(
   structure = structure,
@@ -252,7 +258,7 @@ handlers("txtprogressbar")  # or "progress" for a fancier bar
 
 plan(multisession, workers = parallel::detectCores() - 1)
 
-M <- 200
+M <- 300
 
 # PARALLEL
 # res_list <- future_lapply(seq_len(M), function(i) run(), future.seed=TRUE)
@@ -261,7 +267,7 @@ M <- 200
 with_progress({
   p <- progressor(along = 1:M)  # auto sets steps = length
 
-  set.seed(1)
+  set.seed(2)
   res_list <- future_lapply(
     X = 1:M,
     FUN = function(i) {
