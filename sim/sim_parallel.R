@@ -258,7 +258,7 @@ handlers("txtprogressbar")  # or "progress" for a fancier bar
 
 plan(multisession, workers = parallel::detectCores() - 1)
 
-M <- 300
+M <- 200
 
 # PARALLEL
 # res_list <- future_lapply(seq_len(M), function(i) run(), future.seed=TRUE)
@@ -375,7 +375,7 @@ file <- paste0(
   S_string,
   "_T", T-h,
   "_M", M,
-  "_run1"
+  "_dense"
 )
 saveRDS(results, file = paste("sim/sim_results/", file, ".rds", sep = ""))
 
@@ -383,10 +383,14 @@ saveRDS(error_list, file = paste("sim/sim_results/", file, "_errorlist.rds", sep
 
 saveRDS(W1_hat_list, file = paste("sim/sim_results/", file, "_W1hat.rds", sep = ""))
 
-# Inspect --------------------
+
+
+# Inspect -----------------------------------------------
 
 
 library(purrr)
+
+## Line plot -------------------
 
 MSE
 
@@ -417,5 +421,43 @@ MSE_ts |>
   filter(h <=16) |>
   ggplot(aes(x = h, y = pct_change, color = .model)) +
   geom_line() +
-  labs(x = "Horizon", y = "% relative improvements in MSE") +
+  labs(x = "Horizon", y = "% improvements",
+       title = "% relative improvements in MSE compared to Base") +
   theme_minimal()
+
+
+## Box plot -------------------
+
+# transform into df
+error_df <- transform_error_list(error_list)
+
+# box plot of 1-step-ahead error2
+error_df %>%
+  filter(h == 1) %>%  # filter for 1-step-ahead errors
+  group_by(.model, id) %>%
+  summarise(MSE = mean(e2)) %>%
+  ggplot(aes(x = .model, y = MSE, color = .model)) +
+    geom_boxplot() +
+    theme_minimal()
+
+# box plot of 1-step-ahead relative improvement
+error_df %>%
+  filter(h == 1) %>%
+  group_by(.model, id) %>%
+  summarise(MSE = mean(e2)) %>%
+  # calculate relative improvement compared to base model
+  group_by(id) %>%
+  mutate(base_MSE = MSE[.model == "base"]) %>%
+  ungroup() %>%
+  mutate(pct_change = (MSE - base_MSE) / base_MSE * 100) %>%
+  # remove outliers from mint
+  filter(pct_change < 200) %>%
+  # plot
+  ggplot(aes(x = .model, y = pct_change, color = .model)) +
+    geom_boxplot() +
+    labs(x = "Model", y = "% relative improvements in MSE",
+         title = "% relative improvements in MSE compared to base, 1-step-ahead forecasts") +
+    theme_minimal()
+
+
+
