@@ -51,15 +51,15 @@ structure <- list(
 order_S <- rownames(S)
 
 # ranges for coefs in VAR
-diag_range <- c(0.4, 0.8)
-offdiag_range <- c(-0.4, 0.4)
+diag_range <- c(-0.45, 0.45)
+offdiag_range <- c(-0.2, 0.2)
 
 ## VAR(1) block -------------------------
 A <- generate_block_diag(
   groups = groups,
   diag_range = diag_range,
   offdiag_range = offdiag_range,
-  stationary = FALSE,
+  stationary = TRUE,
 )$A
 
 plot_heatmap(A, TRUE)
@@ -369,7 +369,7 @@ file <- paste0(
   S_string,
   "_T", T-h,
   "_M", M,
-  "_run3"
+  "_run1"
 )
 saveRDS(results, file = paste("sim/sim_results/", file, ".rds", sep = ""))
 
@@ -384,9 +384,9 @@ library(purrr)
 
 MSE
 
-MSE_ts <- transform_sim_MSE(MSE)
+MSE_ts <- transform_sim_MSE(MSE, F)
 
-MSE_ts |> group_by(.model) |> index_by(h) |>
+MSE_ts |> group_by(.model, h) |>
   summarise(mse = mean(MSE)) |>
   ggplot(aes(x = h, y = mse, color = .model)) +
   geom_line() +
@@ -396,4 +396,20 @@ MSE_ts |> group_by(.model) |> index_by(h) |>
 
 MSE$mint_shr - MSE$mint_n
 
-
+MSE_ts |>
+  group_by(series, h) |>
+  mutate(
+    base_MSE = MSE[.model == "base"]
+  ) |>
+  ungroup() |>
+  group_by(.model, h) |>
+  summarise(
+    MSE = mean(MSE),
+    base_MSE = mean(base_MSE),
+    pct_change = (MSE - base_MSE) / base_MSE * 100
+  ) |>
+  filter(h <=16) |>
+  ggplot(aes(x = h, y = pct_change, color = .model)) +
+  geom_line() +
+  labs(x = "Horizon", y = "% relative improvements in MSE") +
+  theme_minimal()
