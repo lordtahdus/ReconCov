@@ -220,7 +220,8 @@ run <- function(A = NULL, Sigma = NULL, message = F) {
   }
   recon_mint_sample <- reconcile_mint(base_fc, S, sample_cov)
 
-  Sigma_true <- t(S) %*% Sigma %*% S
+  Sigma_true <- S %*% Sigma %*% t(S)
+  Sigma_true <- nearPD(Sigma_true)$mat # ensure positive-definite
   recon_mint_true <- reconcile_mint(base_fc, S, Sigma_true)
 
   # # # # # #
@@ -277,6 +278,14 @@ with_progress({
     future.seed=TRUE
   )
 })
+
+model_names <- c("base", "mint_shr", "mint_n", "mint_sample", "mint_true")
+SSE_cum <- setNames(
+  lapply(model_names, function(name) {
+    matrix(0, h, length(order_S), dimnames = list(1:h, order_S))
+  }),
+  model_names
+)
 
 # check orders of results
 res_list[[1]]$SSE |> names() == SSE_cum |> names()
