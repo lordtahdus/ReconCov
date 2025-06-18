@@ -250,17 +250,9 @@ library(progressr)
 handlers(global = TRUE) # Setup progress bar handler
 handlers("txtprogressbar")  # or "progress" for a fancier bar
 
-plan(multisession, workers = parallel::detectCores() - 2)
+plan(multisession, workers = parallel::detectCores() - 1)
 
 M <- 200
-
-model_names <- c("base", "mint_shr", "mint_n", "mint_sample", "mint_true")
-SSE_cum <- setNames(
-  lapply(model_names, function(name) {
-    matrix(0, h, length(order_S), dimnames = list(1:h, order_S))
-  }),
-  model_names
-)
 
 # PARALLEL
 # res_list <- future_lapply(seq_len(M), function(i) run(), future.seed=TRUE)
@@ -271,13 +263,31 @@ with_progress({
 
   set.seed(1)
   res_list <- future_lapply(
-    1:M, function(i) {
-      p(message = sprintf("Sim %d", i))  # advances safely
-      run(A, Sigma, message = FALSE)
+    X = 1:M,
+    FUN = function(i) {
+      # this guarantees the bar advances even on error
+      on.exit(p(sprintf("Sim %d", i)), add = TRUE)
+
+      ## run the simulation but swallow any error
+      tryCatch(
+        run(A, Sigma, message = FALSE),
+
+        ## put the error into the return value instead of stopping
+        error = function(e) {
+          structure(list(message = e$message,
+                         call    = e$call,
+                         sim_id  = i),
+                    class = "sim_error")
+        }
+      )
     },
-    future.seed=TRUE
+    future.seed = TRUE
   )
 })
+
+# remove any error simulation
+cat("Any error in sim:", any(sapply(res_list, inherits, "sim_error")))
+res_list <- res_list[!sapply(res_list, inherits, "sim_error")]
 
 model_names <- c("base", "mint_shr", "mint_n", "mint_sample", "mint_true")
 SSE_cum <- setNames(
