@@ -178,19 +178,19 @@ cat("Similarity %", sum(!cond)/length(results$W_shr)) # proportion of similarity
 # lambdas given thresholded != identity
 plot(
   results$W_shr[cond],
-  results$W_n[,1][cond]
+  results$W_n[,"lambda"][cond]
 ); abline(a = 0, b = 1, col = "red", lty = 1)
 
 # lambda vs delta NOVELIST
 plot(results$W_n)
 # given thresholded != identity
 plot(
-  results$W_n[,1][cond],
-  results$W_n[,2][cond]
+  results$W_n[,'lambda'][cond],
+  results$W_n[,'delta'][cond]
 )
 
-hist(results$W_n[,2])
-hist(results$W_n[,2][cond])
+hist(results$W_n[,'delta'])
+hist(results$W_n[,'delta'][cond])
 ```
 
 
