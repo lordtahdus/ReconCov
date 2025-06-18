@@ -182,7 +182,7 @@ plot(
 ); abline(a = 0, b = 1, col = "red", lty = 1)
 
 # lambda vs delta NOVELIST
-plot(results$W_n)
+plot(results$W_n, main= "NOVELIST params")
 # given thresholded != identity
 plot(
   results$W_n[,'lambda'][cond],
@@ -191,6 +191,8 @@ plot(
 
 hist(results$W_n[,'delta'])
 hist(results$W_n[,'delta'][cond])
+
+hist(results$W_shr, main = "Shrinkage Estimator: lambda")
 ```
 
 
