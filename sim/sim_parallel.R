@@ -105,7 +105,11 @@ Sigma <- convert_cor2cov(
   stdevs = runif(nrow(Sigma), 1*sqrt(2), 2*sqrt(3))
 )
 # flip signs
-V <- diag(x = sample(c(-1,1), size = sum(groups), replace = TRUE))
+V <- diag(x = sample(
+  c(1,1),
+  size = sum(groups), replace = TRUE,
+  prob= c(0.5, 0.5)
+))
 Sigma <- V %*% Sigma %*% V
 
 plot_heatmap(Sigma %>% cov2cor(), TRUE)
@@ -375,7 +379,7 @@ file <- paste0(
   S_string,
   "_T", T-h,
   "_M", M,
-  "_dense"
+  "_sparsernd"
 )
 saveRDS(results, file = paste("sim/sim_results/", file, ".rds", sep = ""))
 
