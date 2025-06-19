@@ -492,6 +492,13 @@ error_df %>%
     theme_minimal()
 ```
 
+```{r}
+plot(
+  W_n_store[,'lambda'],
+  W_n_store[,'delta']
+)
+hist(W_shr_store, main = "Shrinkage Estimator: lambda")
+```
 
 ## Save
 
