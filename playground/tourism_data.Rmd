@@ -328,7 +328,7 @@ run <- function(data, start, end, S) {
   
   # Get actual values
   actual <- data %>% 
-    filter(Month > end & Month <= end + 11) %>% 
+    filter(Month > end & Month <= end + 12) %>% 
     as_tibble() %>% 
     arrange(State, Region) %>%
     left_join(row_names, by = c("State", "Region")) %>%
@@ -402,7 +402,7 @@ SSE_cum <- setNames(
 # moving 1 month forward
 start_date <- visnights_full$Month[1]
 end_date <- yearmonth("2015-01")
-M <- 4
+M <- 48
 seq_dates <- list(
   start = start_date + 0:(M-1),
   end = end_date + 0:(M-1)
@@ -429,20 +429,5 @@ with_progress({
     future.seed=TRUE
   )
 })
-
-result_list <- future_lapply(
-  1:4, 
-  function(i) {
-    start <- seq_dates$start[i]
-    end <- seq_dates$end[i]
-    run(
-      visnights_full,
-      start,
-      end,
-      S
-    )
-  },
-  future.seed=TRUE
-)
 ```
 
