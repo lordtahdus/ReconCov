@@ -391,14 +391,6 @@ handlers("txtprogressbar")  # or "progress" for a fancier bar
 plan(multisession, workers = parallel::detectCores() - 2)
 
 
-model_names <- c("base", "mint_shr", "mint_n", "mint_sample")
-SSE_cum <- setNames(
-  lapply(model_names, function(name) {
-    matrix(0, h, length(rownames(S)), dimnames = list(1:h, rownames(S)))
-  }),
-  model_names
-)
-
 # moving 1 month forward
 start_date <- visnights_full$Month[1]
 end_date <- yearmonth("2015-01")
@@ -429,5 +421,97 @@ with_progress({
     future.seed=TRUE
   )
 })
+```
+
+
+## Evaluation
+
+```{r}
+
+model_names <- c("base", "mint_shr", "mint_n", "mint_sample")
+SSE_cum <- setNames(
+  lapply(model_names, function(name) {
+    matrix(0, h, length(rownames(S)), dimnames = list(1:h, rownames(S)))
+  }),
+  model_names
+)
+
+# wrangle
+SSE_cum <- Reduce(function(acc, res) Map(`+`, acc, res$e2),
+                      result_list, init = SSE_cum)
+W_shr_store <- sapply(result_list, `[[`, "W_shr")
+W_n_store <- t(sapply(result_list, `[[`, "W_n")) ; colnames(W_n_store) <- c("lambda", "delta")
+
+MSE <- lapply(SSE_cum, function(mat) mat / M)
+MSE_ts <- transform_sim_MSE(MSE, F)
+```
+
+```{r}
+MSE_ts |>
+  group_by(series, h) |>
+  mutate(
+    base_MSE = MSE[.model == "base"]
+  ) |>
+  ungroup() |>
+  group_by(.model, h) |>
+  summarise(
+    MSE = mean(MSE),
+    base_MSE = mean(base_MSE),
+    pct_change = (MSE - base_MSE) / base_MSE * 100
+  ) |>
+  filter(h <=16) |>
+  ggplot(aes(x = h, y = pct_change, color = .model)) +
+  geom_line() +
+  labs(x = "Horizon", y = "% improvements",
+       title = "% relative improvements in MSE compared to Base") +
+  theme_minimal()
+```
+
+
+```{r}
+error_list <- purrr::map(result_list, "e2")
+# transform into df
+error_df <- transform_error_list(error_list)
+# box plot of 1-step-ahead relative improvement
+error_df %>%
+  filter(h == 1) %>%
+  group_by(.model, id) %>%
+  summarise(MSE = mean(e2)) %>%
+  # calculate relative improvement compared to base model
+  group_by(id) %>%
+  mutate(base_MSE = MSE[.model == "base"]) %>%
+  ungroup() %>%
+  mutate(pct_change = (MSE - base_MSE) / base_MSE * 100) %>%
+  # remove outliers from mint
+  filter(pct_change < 200) %>%
+  # plot
+  ggplot(aes(x = .model, y = pct_change, color = .model)) +
+    geom_boxplot() +
+    labs(x = "Model", y = "% relative improvements in MSE",
+         title = "% relative improvements in MSE compared to base, 1-step-ahead forecasts") +
+    theme_minimal()
+```
+
+
+## Save
+
+```{r}
+results <- list(
+  S      = S,
+  seq_dates = seq_dates,
+  MSE    = MSE,    # or averaged MSE
+  W_shr  = W_shr_store,       # can be a list of matrices or one matrix
+  W_n    = W_n_store          # same
+)
+
+file <- paste0(
+  "tourism_results_48cv"
+)
+saveRDS(results, file = paste("playground/", file, ".rds", sep = ""))
+
+saveRDS(error_list, file = paste("playground/", file, "_errorlist.rds", sep = ""))
+
+
+
 ```
 
