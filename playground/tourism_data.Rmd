@@ -113,10 +113,14 @@ visnights_full <- visnights %>%
 ## Base fc
 
 ```{r}
-year_filter <- 2015
+year_filter <- 2018
 fit <- visnights_full |>
   filter(year(Month) <= year_filter) |>
-  model(base = ETS(Nights))
+  model(base = ETS(Nights)) %>% 
+  reconcile(
+    ols = min_trace(base, method = "ols"),
+    mint_shr = min_trace(base, method = "mint_shrink")
+  )
 
 # base forecasts
 h <- 12
@@ -191,6 +195,7 @@ y <- fit_augment %>%
 ```{r base_fc}
 base_fc <- fc %>% 
   as_tibble() %>% 
+  filter(.model == "base") %>%
   left_join(row_names, by = c("State", "Region")) %>%
   select(name, .mean, Month) %>%
   pivot_wider(names_from = name, values_from = .mean) %>%
@@ -249,8 +254,19 @@ recon_mint_sample <- reconcile_mint(base_fc, S, sample_cov)
 # 
 # sqrt(colMeans((actual - base_fc)^2))
 
+ols_fc <- fc %>% 
+  as_tibble() %>% 
+  filter(.model == "ols") %>%
+  left_join(row_names, by = c("State", "Region")) %>%
+  select(name, .mean, Month) %>%
+  pivot_wider(names_from = name, values_from = .mean) %>%
+  select(-Month) %>% 
+  as.matrix()
+
+
 error_sq <- list(
   base = ((actual - base_fc)^2),
+  ols = ((actual - ols_fc)^2),
   mint_shr = ((actual - recon_mint_shr)^2),
   mint_n = ((actual - recon_mint_n)^2),
   mint_sample = ((actual - recon_mint_sample)^2)
