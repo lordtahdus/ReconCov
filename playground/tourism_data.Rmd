@@ -380,8 +380,11 @@ run <- function(data, start, end, S) {
   }
   recon_mint_sample <- reconcile_mint(base_fc, S, sample_cov)
   
+  recon_ols <- reconcile_mint(base_fc, S, diag(rep(1, nrow(S)))) # identity matrix
+  
   e2 <- list(
     base = ((actual - base_fc)^2),
+    ols = ((actual - recon_ols)^2),
     mint_shr = ((actual - recon_mint_shr)^2),
     mint_n = ((actual - recon_mint_n)^2),
     mint_sample = ((actual - recon_mint_sample)^2)
@@ -410,7 +413,7 @@ plan(multisession, workers = parallel::detectCores() - 2)
 # moving 1 month forward
 start_date <- visnights_full$Month[1]
 end_date <- yearmonth("2015-01")
-M <- 48
+M <- 12
 seq_dates <- list(
   start = start_date + 0:(M-1),
   end = end_date + 0:(M-1)
@@ -444,7 +447,7 @@ with_progress({
 
 ```{r}
 
-model_names <- c("base", "mint_shr", "mint_n", "mint_sample")
+model_names <- c("base", "ols", "mint_shr", "mint_n", "mint_sample")
 SSE_cum <- setNames(
   lapply(model_names, function(name) {
     matrix(0, h, length(rownames(S)), dimnames = list(1:h, rownames(S)))
