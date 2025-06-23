@@ -563,3 +563,53 @@ fc_tr <- visnights_stretched |>
 # Save results forecast
 saveRDS(fc_tr, file = "playground/tourism_fc_tr.rds")
 ```
+
+```{r}
+SSE <- function(.resid, na.rm = TRUE, ...){
+  sum(.resid ^ 2, na.rm = na.rm)
+}
+Nobs <- function(.resid, na.rm = TRUE, ...){
+  length(.resid)
+}
+accuracy_tr <- fc_tr %>% 
+  group_by(.id, .model, State, Region) %>% 
+  mutate(h = row_number()) %>%
+  ungroup() %>%
+  as_fable(response = "Nights", distribution = Nights) %>% 
+  accuracy(
+    visnights_full,
+    # by = c("h", ".model"),
+    by = c("h", ".model", "State", "Region"),
+    measures = list(RMSE = RMSE, SSE = SSE, N = Nobs)
+  )
+
+accuracy_tr %>% 
+  group_by(h, .model) %>% 
+  summarise(
+    RMSE = sqrt(mean(RMSE^2)),
+    .groups = "drop"
+  ) %>%
+  ggplot(aes(h, RMSE, color = .model)) +
+    geom_line()
+
+accuracy_tr |>
+  mutate(MSE = RMSE^2) %>% 
+  # group_by(h) %>% 
+  group_by(State, Region, h) |>
+  mutate(
+    base_MSE = MSE[.model == "base"]
+  ) |>
+  ungroup() |>
+  group_by(.model, h) |>
+  summarise(
+    RMSE = RMSE,
+    MSE = mean(MSE),
+    base_MSE = mean(base_MSE),
+    pct_change = (MSE - base_MSE) / base_MSE * 100
+  ) |>
+  ggplot(aes(x = h, y = pct_change, color = .model)) +
+    geom_line() +
+    labs(x = "Horizon", y = "% relative improvements in MSE") +
+    theme_minimal()
+```
+
