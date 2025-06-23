@@ -541,3 +541,25 @@ saveRDS(error_list, file = paste("playground/", file, "_errorlist.rds", sep = ""
 
 ```
 
+
+# CV Fabletools
+
+```{r}
+visnights_stretched <- visnights_full %>% 
+  slide_tsibble(.size = 205) %>% 
+  relocate(.id) %>% 
+  filter(.id <= 12)
+```
+
+```{r}
+fc_tr <- visnights_stretched |>
+  model(base = ETS(Nights)) %>% 
+  reconcile(
+    ols = min_trace(base, method = "ols"),
+    mint_shr = min_trace(base, method = "mint_shrink")
+  ) |>
+  forecast(h = 12)
+
+# Save results forecast
+saveRDS(fc_tr, file = "playground/tourism_fc_tr.rds")
+```
