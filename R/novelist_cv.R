@@ -5,7 +5,7 @@
 #' on validation windows.
 #'
 #' @param y A matrix of actual values (dim T by p),
-#' @param base_forecasts A matrix of base forecasts (dim T by p).
+#' @param y_hat A matrix of fitted values (dim T by p).
 #' @param S A matrix of reconciliation structure (dim p by b; b is number of bottom series).
 #' @param window_size The length of the rolling window n.
 #' @param deltas A numeric vector of candidate threshold values in [0,1].
@@ -22,14 +22,14 @@
 #'
 #' @details
 #' This approach loops through each possible validation segment in a rolling manner:
-#'   for i in window_size:(T-1), use base_resid[(i-window_size+1):i, ] as training data
+#'   for i in window_size:(T-1), use resid[(i-window_size+1):i, ] as training data
 #'   then produce a reconciled forecast for time i+1 and measure the error.
 #' The final best delta is the one that yields the lowest error measure.
 #'
 #' @export
 novelist_cv <- function(
     y,
-    base_forecasts,
+    y_hat,
     S,
     window_size,
     deltas = seq(0, 1, by = 0.05),
@@ -43,15 +43,15 @@ novelist_cv <- function(
   p <- ncol(y)
 
   # Preliminary checks
-  if(any(dim(y) != dim(base_forecasts))) {
-    stop("Dimensions of 'y' and 'base_forecasts' must match.")
+  if(any(dim(y) != dim(y_hat))) {
+    stop("Dimensions of 'y' and 'y_hat' must match.")
   }
   if(T <= window_size || window_size <= 1 || (window_size %% 1 != 0)) {
     stop("Window size must be integer, greater than 1 and less than nrow.")
   }
 
   # Calculate base residuals
-  base_resid <- y - base_forecasts
+  resid <- y - y_hat
   # Store errors
   cv_errors <- matrix(NA, nrow = T - window_size, ncol = length(deltas))
 
@@ -61,11 +61,11 @@ novelist_cv <- function(
   for (i in window_size:(T - 1)) {
 
     # Training residuals from (i-window_size+1) to i
-    train_resid <- base_resid[(i - window_size + 1):i, , drop=FALSE] # drop=F keep matrix structure
+    train_resid <- resid[(i - window_size + 1):i, , drop=FALSE] # drop=F keep matrix structure
 
     # The actual data at time i+1
     actual_next <- y[i+1, ]
-    base_fc_next <- base_forecasts[i+1, ]
+    fitted_next <- y_hat[i+1, ]
 
     # Now loop over candidate threshold delta
     for(delta in deltas){
@@ -83,9 +83,9 @@ novelist_cv <- function(
         stop("The covariance matrix is not positive definite, cannot reconcile. Try ensure_PD = T")
       }
 
-      recon_fc <- base_fc_next
+      recon_fc <- fitted_next
       recon_fc <- reconcile_mint(
-        base_forecasts = base_fc_next,
+        base_forecasts = fitted_next,
         S = S,
         W = cov_novelist
       )
@@ -116,9 +116,9 @@ novelist_cv <- function(
   best_idx <- which.min(mean_errors)
   delta_star <- deltas[best_idx]
 
-  # Refit final NOVELIST covariance using entire base_resid
+  # Refit final NOVELIST covariance using entire resid
   novelist_results <- novelist_est(
-    resid     = base_resid,
+    resid     = resid,
     delta     = delta_star,
     zero_mean = zero_mean
   )
