@@ -13,3 +13,9 @@ novelist_est_cpp <- function(resid, delta, lambda_in = NULL, zero_mean = TRUE) {
     .Call('_ReconCov_novelist_est_cpp', PACKAGE = 'ReconCov', resid, delta, lambda_in, zero_mean)
 }
 
+#' Outsource the two for loops in novelist_cv into C++
+#'
+novelist_cov_grid_cpp <- function(resid, deltas, window_size, zero_mean = TRUE) {
+    .Call('_ReconCov_novelist_cov_grid_cpp', PACKAGE = 'ReconCov', resid, deltas, window_size, zero_mean)
+}
+

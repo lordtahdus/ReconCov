@@ -25,9 +25,24 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// novelist_cov_grid_cpp
+Rcpp::List novelist_cov_grid_cpp(const arma::mat& resid, const arma::vec& deltas, int window_size, bool zero_mean);
+RcppExport SEXP _ReconCov_novelist_cov_grid_cpp(SEXP residSEXP, SEXP deltasSEXP, SEXP window_sizeSEXP, SEXP zero_meanSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::mat& >::type resid(residSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type deltas(deltasSEXP);
+    Rcpp::traits::input_parameter< int >::type window_size(window_sizeSEXP);
+    Rcpp::traits::input_parameter< bool >::type zero_mean(zero_meanSEXP);
+    rcpp_result_gen = Rcpp::wrap(novelist_cov_grid_cpp(resid, deltas, window_size, zero_mean));
+    return rcpp_result_gen;
+END_RCPP
+}
 
 static const R_CallMethodDef CallEntries[] = {
     {"_ReconCov_novelist_est_cpp", (DL_FUNC) &_ReconCov_novelist_est_cpp, 4},
+    {"_ReconCov_novelist_cov_grid_cpp", (DL_FUNC) &_ReconCov_novelist_cov_grid_cpp, 4},
     {NULL, NULL, 0}
 };
 
