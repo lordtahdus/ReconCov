@@ -94,19 +94,12 @@ Rcpp::List novelist_est_cpp(
   r.each_col() /= sd;     // divide by sd_i (columns)
   r.each_row() /= sd.t(); // divide by sd_j (rows)
 
-  // Soft‑threshold correlation matrix
-  arma::mat r_thresh = r;
-  for (uword j = 0; j < r.n_cols; ++j) {      // Using uword (rather than plain int) avoids any signed/unsigned mismatch when you compare against r.n_cols (which itself is a uword).
-    for (uword i = 0; i < r.n_rows; ++i) {
-      if (i == j) {
-        r_thresh(i, j) = 1.0;           // keep diag at 1
-      } else {
-        double val = r(i, j);
-        double thr_val = std::max(std::abs(val) - delta, 0.0);
-        r_thresh(i, j) = (val >= 0.0 ? thr_val : -thr_val);   // sign
-      }
-    }
-  }
+  // --- Soft-threshold correlation matrix (vectorised) ------------------
+  arma::mat r_thresh = arma::abs(r) - delta;          // element-wise
+  r_thresh.transform( [](double x){ return x < 0.0 ? 0.0 : x; } );  // max(x,0)
+
+  r_thresh = arma::sign(r) % r_thresh;      // restore sign
+  r_thresh.diag().ones();                   // keep diag = 1
 
   // Variance of correlations & lambda
   arma::mat v = compute_var_cor_matrix_cpp(resid, covm, zero_mean);
