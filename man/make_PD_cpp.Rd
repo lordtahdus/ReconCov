@@ -4,7 +4,7 @@
 \alias{make_PD_cpp}
 \title{Enforce positive definiteness on a matrix in C++}
 \usage{
-make_PD_cpp(W, tol = 1e-08)
+make_PD_cpp(W, tol = 1e-06)
 }
 \arguments{
 \item{W}{The input matrix to be made positive definite.}

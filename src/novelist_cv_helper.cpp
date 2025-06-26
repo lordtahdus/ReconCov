@@ -24,7 +24,7 @@ Rcpp::List novelist_est_cpp(const arma::mat& resid,
 // [[Rcpp::export]]
 arma::mat make_PD_cpp(
     const arma::mat& W,
-    double tol = 1e-8
+    double tol = 1e-6
 ) {
   arma::vec eigval;
   arma::mat eigvec;
@@ -65,7 +65,7 @@ arma::mat reconcile_mint_cpp(
   // } else {
   //   Rcpp::stop("Dimensions do not conform: base_forecasts must be vector or T x p matrix.");
   // }
-  return trans(S * P * base_forecasts.t()).t();
+  return (S * P * base_forecasts.t()).t();
 }
 
 
@@ -125,7 +125,7 @@ Rcpp::List novelist_cv_cpp(
     const arma::vec&  deltas,
     bool              zero_mean = true,
     bool              ensure_PD = true,
-    double            PD_tol    = 1e-8
+    double            PD_tol    = 1e-6
 ) {
   // Checks
   if (y.n_rows != y_hat.n_rows || y.n_cols != y_hat.n_cols)
