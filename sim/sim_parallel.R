@@ -21,7 +21,7 @@ load_all()
 # groups <- c(6,6,6,6,6,6)
 groups <- c(50,50)
 
-T <- 54
+T <- 304
 h <- 4
 Tsplit <- T - h
 
@@ -230,18 +230,21 @@ run <- function(A = NULL, Sigma = NULL, message = F) {
   }
   recon_mint_sample <- reconcile_mint(base_fc, S, sample_cov)
 
-  Sigma_true <- S %*% Sigma %*% t(S)
-  Sigma_true <- nearPD(Sigma_true)$mat # ensure positive-definite
-  recon_mint_true <- reconcile_mint(base_fc, S, Sigma_true)
+  # Sigma_true <- S %*% Sigma %*% t(S)
+  # Sigma_true <- nearPD(Sigma_true)$mat # ensure positive-definite
+  # recon_mint_true <- reconcile_mint(base_fc, S, Sigma_true)
+
+  recon_ols <- reconcile_mint(base_fc, S, diag(rep(1, nrow(S)))) # identity matrix
 
   # # # # # #
   # Return
   SSE <- list(
     base = ((actual - base_fc)^2),
+    ols = ((actual - recon_ols)^2),
     mint_shr = ((actual - recon_mint_shr)^2),
     mint_n = ((actual - recon_mint_n)^2),
-    mint_sample = ((actual - recon_mint_sample)^2),
-    mint_true = ((actual - recon_mint_true)^2)
+    mint_sample = ((actual - recon_mint_sample)^2)
+    # mint_true = ((actual - recon_mint_true)^2)
   )
 
   list(
@@ -299,7 +302,7 @@ with_progress({
 cat("Any error in sim:", any(sapply(res_list, inherits, "sim_error")))
 res_list <- res_list[!sapply(res_list, inherits, "sim_error")]
 
-model_names <- c("base", "mint_shr", "mint_n", "mint_sample", "mint_true")
+model_names <- c("base", "ols", "mint_shr", "mint_n", "mint_sample")
 SSE_cum <- setNames(
   lapply(model_names, function(name) {
     matrix(0, h, length(order_S), dimnames = list(1:h, order_S))
@@ -379,13 +382,13 @@ file <- paste0(
   S_string,
   "_T", T-h,
   "_M", M,
-  "_sparsernd"
+  "_dense"
 )
 saveRDS(results, file = paste("sim/sim_results/", file, ".rds", sep = ""))
 
-saveRDS(error_list, file = paste("sim/sim_results/", file, "_errorlist.rds", sep = ""))
+saveRDS(error_list, file = paste("sim/sim_results/errorlist/", file, "_errorlist.rds", sep = ""))
 
-saveRDS(W1_hat_list, file = paste("sim/sim_results/", file, "_W1hat.rds", sep = ""))
+saveRDS(W1_hat_list, file = paste("sim/sim_results/W1hat/", file, "_W1hat.rds", sep = ""))
 
 
 
