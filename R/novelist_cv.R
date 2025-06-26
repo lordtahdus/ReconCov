@@ -141,7 +141,7 @@ novelist_cv <- function(
 }
 
 
-#' Rolling Cross-Validation for NOVELIST Threshold Selection (C++ accelerated)
+#' Rolling Cross-Validation for NOVELIST Threshold Selection (C++ grid)
 #'
 #' This function uses Rcpp to speed up the rolling window computation of
 #' NOVELIST covariance matrices across a grid of threshold values. It avoids
@@ -155,7 +155,7 @@ novelist_cv <- function(
 #'   \item{errors_by_delta}{vector of average validation error for each delta}
 #'
 #' @export
-novelist_cv_cpp <- function(
+novelist_cv_grid <- function(
     y,
     y_hat,
     S,
