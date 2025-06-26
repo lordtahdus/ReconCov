@@ -25,6 +25,31 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// make_PD_cpp
+arma::mat make_PD_cpp(const arma::mat& W, double tol);
+RcppExport SEXP _ReconCov_make_PD_cpp(SEXP WSEXP, SEXP tolSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::mat& >::type W(WSEXP);
+    Rcpp::traits::input_parameter< double >::type tol(tolSEXP);
+    rcpp_result_gen = Rcpp::wrap(make_PD_cpp(W, tol));
+    return rcpp_result_gen;
+END_RCPP
+}
+// reconcile_mint_cpp
+arma::mat reconcile_mint_cpp(const arma::mat& base_forecasts, const arma::mat& S, const arma::mat& W);
+RcppExport SEXP _ReconCov_reconcile_mint_cpp(SEXP base_forecastsSEXP, SEXP SSEXP, SEXP WSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::mat& >::type base_forecasts(base_forecastsSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type S(SSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type W(WSEXP);
+    rcpp_result_gen = Rcpp::wrap(reconcile_mint_cpp(base_forecasts, S, W));
+    return rcpp_result_gen;
+END_RCPP
+}
 // novelist_cov_grid_cpp
 Rcpp::List novelist_cov_grid_cpp(const arma::mat& resid, const arma::vec& deltas, int window_size, bool zero_mean);
 RcppExport SEXP _ReconCov_novelist_cov_grid_cpp(SEXP residSEXP, SEXP deltasSEXP, SEXP window_sizeSEXP, SEXP zero_meanSEXP) {
@@ -39,10 +64,31 @@ BEGIN_RCPP
     return rcpp_result_gen;
 END_RCPP
 }
+// novelist_cv_cpp
+Rcpp::List novelist_cv_cpp(const arma::mat& y, const arma::mat& y_hat, const arma::mat& S, int window_size, const arma::vec& deltas, bool zero_mean, bool ensure_PD, double PD_tol);
+RcppExport SEXP _ReconCov_novelist_cv_cpp(SEXP ySEXP, SEXP y_hatSEXP, SEXP SSEXP, SEXP window_sizeSEXP, SEXP deltasSEXP, SEXP zero_meanSEXP, SEXP ensure_PDSEXP, SEXP PD_tolSEXP) {
+BEGIN_RCPP
+    Rcpp::RObject rcpp_result_gen;
+    Rcpp::RNGScope rcpp_rngScope_gen;
+    Rcpp::traits::input_parameter< const arma::mat& >::type y(ySEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type y_hat(y_hatSEXP);
+    Rcpp::traits::input_parameter< const arma::mat& >::type S(SSEXP);
+    Rcpp::traits::input_parameter< int >::type window_size(window_sizeSEXP);
+    Rcpp::traits::input_parameter< const arma::vec& >::type deltas(deltasSEXP);
+    Rcpp::traits::input_parameter< bool >::type zero_mean(zero_meanSEXP);
+    Rcpp::traits::input_parameter< bool >::type ensure_PD(ensure_PDSEXP);
+    Rcpp::traits::input_parameter< double >::type PD_tol(PD_tolSEXP);
+    rcpp_result_gen = Rcpp::wrap(novelist_cv_cpp(y, y_hat, S, window_size, deltas, zero_mean, ensure_PD, PD_tol));
+    return rcpp_result_gen;
+END_RCPP
+}
 
 static const R_CallMethodDef CallEntries[] = {
     {"_ReconCov_novelist_est_cpp", (DL_FUNC) &_ReconCov_novelist_est_cpp, 4},
+    {"_ReconCov_make_PD_cpp", (DL_FUNC) &_ReconCov_make_PD_cpp, 2},
+    {"_ReconCov_reconcile_mint_cpp", (DL_FUNC) &_ReconCov_reconcile_mint_cpp, 3},
     {"_ReconCov_novelist_cov_grid_cpp", (DL_FUNC) &_ReconCov_novelist_cov_grid_cpp, 4},
+    {"_ReconCov_novelist_cv_cpp", (DL_FUNC) &_ReconCov_novelist_cv_cpp, 8},
     {NULL, NULL, 0}
 };
 

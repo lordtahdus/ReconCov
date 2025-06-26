@@ -13,9 +13,41 @@ novelist_est_cpp <- function(resid, delta, lambda_in = NULL, zero_mean = TRUE) {
     .Call('_ReconCov_novelist_est_cpp', PACKAGE = 'ReconCov', resid, delta, lambda_in, zero_mean)
 }
 
+#' Enforce positive definiteness on a matrix in C++
+#'
+#' This function performing an eigen decomposition on a symmetric matrix,
+#' thresholding the eigenvalues, and reconstructing the matrix.
+#'
+#' @param W The input matrix to be made positive definite.
+#' @param threshold A small value to replace negative eigenvalues (1e-8 default).
+#' @return A positive definite matrix.
+#'
+#' @export
+make_PD_cpp <- function(W, tol = 1e-8) {
+    .Call('_ReconCov_make_PD_cpp', PACKAGE = 'ReconCov', W, tol)
+}
+
+#' Reconcile forecasts using MinT formula in C++
+#'
+#' @seealso \code{\link[=reconcile_mint]}
+#' @export
+reconcile_mint_cpp <- function(base_forecasts, S, W) {
+    .Call('_ReconCov_reconcile_mint_cpp', PACKAGE = 'ReconCov', base_forecasts, S, W)
+}
+
 #' Outsource the two for loops in novelist_cv into C++
 #'
 novelist_cov_grid_cpp <- function(resid, deltas, window_size, zero_mean = TRUE) {
     .Call('_ReconCov_novelist_cov_grid_cpp', PACKAGE = 'ReconCov', resid, deltas, window_size, zero_mean)
+}
+
+#' Rolling Cross-Validation for NOVELIST Threshold Selection (C++ accelerated)
+#'
+#' @seealso \code{\link[=novelist_cv]}
+#' @note This function use different enforcing PD method.
+#'
+#' @export
+novelist_cv_cpp <- function(y, y_hat, S, window_size, deltas, zero_mean = TRUE, ensure_PD = TRUE, PD_tol = 1e-8) {
+    .Call('_ReconCov_novelist_cv_cpp', PACKAGE = 'ReconCov', y, y_hat, S, window_size, deltas, zero_mean, ensure_PD, PD_tol)
 }
 
