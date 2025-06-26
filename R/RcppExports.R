@@ -23,7 +23,7 @@ novelist_est_cpp <- function(resid, delta, lambda_in = NULL, zero_mean = TRUE) {
 #' @return A positive definite matrix.
 #'
 #' @export
-make_PD_cpp <- function(W, tol = 1e-8) {
+make_PD_cpp <- function(W, tol = 1e-6) {
     .Call('_ReconCov_make_PD_cpp', PACKAGE = 'ReconCov', W, tol)
 }
 
@@ -35,19 +35,13 @@ reconcile_mint_cpp <- function(base_forecasts, S, W) {
     .Call('_ReconCov_reconcile_mint_cpp', PACKAGE = 'ReconCov', base_forecasts, S, W)
 }
 
-#' Outsource the two for loops in novelist_cv into C++
-#'
-novelist_cov_grid_cpp <- function(resid, deltas, window_size, zero_mean = TRUE) {
-    .Call('_ReconCov_novelist_cov_grid_cpp', PACKAGE = 'ReconCov', resid, deltas, window_size, zero_mean)
-}
-
 #' Rolling Cross-Validation for NOVELIST Threshold Selection (C++ accelerated)
 #'
 #' @seealso \code{\link[=novelist_cv]}
 #' @note This function use different enforcing PD method.
 #'
 #' @export
-novelist_cv_cpp <- function(y, y_hat, S, window_size, deltas, zero_mean = TRUE, ensure_PD = TRUE, PD_tol = 1e-8) {
+novelist_cv_cpp <- function(y, y_hat, S, window_size, deltas, zero_mean = TRUE, ensure_PD = TRUE, PD_tol = 1e-6) {
     .Call('_ReconCov_novelist_cv_cpp', PACKAGE = 'ReconCov', y, y_hat, S, window_size, deltas, zero_mean, ensure_PD, PD_tol)
 }
 

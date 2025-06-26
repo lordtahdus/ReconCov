@@ -12,7 +12,7 @@ novelist_cv_cpp(
   deltas,
   zero_mean = TRUE,
   ensure_PD = TRUE,
-  PD_tol = 1e-08
+  PD_tol = 1e-06
 )
 }
 \description{
