@@ -11,6 +11,37 @@ Rcpp::List novelist_est_cpp(const arma::mat& resid,
                             Rcpp::Nullable<double> lambda_in = R_NilValue,
                             bool zero_mean = true);
 
+//' Enforce positive definiteness on a matrix in C++
+//'
+//' This function performing an eigen decomposition on a symmetric matrix,
+//' thresholding the eigenvalues, and reconstructing the matrix.
+//'
+//' @param W The input matrix to be made positive definite.
+//' @param threshold A small value to replace negative eigenvalues (1e-8 default).
+//' @return A positive definite matrix.
+//'
+//' @export
+// [[Rcpp::export]]
+arma::mat make_PD_cpp(
+    const arma::mat& W,
+    double tol = 1e-8
+) {
+  arma::vec eigval;
+  arma::mat eigvec;
+
+  if (!arma::eig_sym(eigval, eigvec, W)) {
+    Rcpp::stop("Eigen decomposition failed.");
+  }
+  eigval.transform([&](double x) {
+    return (x < tol) ? tol : x;
+  });
+  arma::mat W_PD = eigvec * diagmat(eigval) * eigvec.t();
+
+  // Symmetrize to fix numeric asymmetry
+  W_PD = 0.5 * (W_PD + W_PD.t());
+  return W_PD;
+}
+
 
 //' Outsource the two for loops in novelist_cv into C++
 //'
