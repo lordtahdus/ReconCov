@@ -53,8 +53,8 @@ arma::mat reconcile_mint_cpp(
     const arma::mat& S,
     const arma::mat& W
 ) {
-  arma::mat R = S.t() *  solve(W);
-  arma::mat P = solve(R * S) * R;
+  arma::mat R = S.t() *  solve(W, eye(size(W)));
+  arma::mat P = solve(R * S, R);
 
   // if (base_forecasts.n_rows == 1 || base_forecasts.n_cols == 1) {
   //   arma::vec fc_vec = vectorise(base_forecasts);
