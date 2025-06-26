@@ -43,6 +43,32 @@ arma::mat make_PD_cpp(
 }
 
 
+//' Reconcile forecasts using MinT formula in C++
+//'
+//' @seealso \code{\link[=reconcile_mint]}
+//' @export
+// [[Rcpp::export]]
+arma::mat reconcile_mint_cpp(
+    const arma::mat& base_forecasts,
+    const arma::mat& S,
+    const arma::mat& W
+) {
+  arma::mat R = S.t() *  solve(W);
+  arma::mat P = solve(R * S) * R;
+
+  // if (base_forecasts.n_rows == 1 || base_forecasts.n_cols == 1) {
+  //   arma::vec fc_vec = vectorise(base_forecasts);
+  //   arma::mat out = trans(S * P * fc_vec);
+  //   return out;
+  // } else if (S.n_rows == base_forecasts.n_cols) {
+  //   return trans(S * P * trans(base_forecasts));
+  // } else {
+  //   Rcpp::stop("Dimensions do not conform: base_forecasts must be vector or T x p matrix.");
+  // }
+  return trans(S * P * base_forecasts.t()).t();
+}
+
+
 //' Outsource the two for loops in novelist_cv into C++
 //'
 // [[Rcpp::export]]
