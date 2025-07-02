@@ -536,6 +536,8 @@ hist(W_shr_store, main = "Shrinkage Estimator: lambda")
 ## Save
 
 ```{r}
+resid_base <- lapply(result_list, `[[`, "resid_base")
+
 results <- list(
   S      = S,
   seq_dates = seq_dates,
@@ -551,7 +553,7 @@ saveRDS(results, file = paste("playground/", file, ".rds", sep = ""))
 
 saveRDS(error_list, file = paste("playground/", file, "_errorlist.rds", sep = ""))
 
-
+saveRDS(resid_base, file = paste("playground/", file, "_residbase.rds", sep = ""))
 
 ```
 
