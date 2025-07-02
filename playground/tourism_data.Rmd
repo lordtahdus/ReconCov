@@ -301,8 +301,12 @@ error_sq |>
 ## run
 
 ```{r}
-run <- function(data, start, end, S) {
-  
+run <- function(
+    data, 
+    S, 
+    start, end,
+    true_W_h = NULL # if provided, will use only use this W_h for reconciliation
+) {
   fit <- data |>
     filter(Month >= start & Month <= end) |>
     model(base = ETS(Nights))
@@ -353,6 +357,14 @@ run <- function(data, start, end, S) {
     select(-Month) %>%
     as.matrix()
   
+  # if true_W_h is provided, use it for mint_true
+  if (!is.null(true_W_h)) {
+    recon_mint_true <- reconcile_mint(base_fc, S, true_W_h)
+    e2 <- ((actual - recon_mint_true)^2)
+    return(e2)
+  }
+  # Otherwise run as usual
+  
   # Cov estimators
   W_shr <- shrinkage_est(
     y - y_hat
@@ -392,6 +404,7 @@ run <- function(data, start, end, S) {
   
   return(list(
     e2 = e2,
+    resid_base = actual - base_fc,
     W_shr = W_shr$lambda,
     W_n = c(W_n$lambda, W_n$delta)
   ))
@@ -432,9 +445,9 @@ with_progress({
       end <- seq_dates$end[i]
       run(
         visnights_full,
+        S,
         start,
-        end,
-        S
+        end
       )
     },
     future.seed=TRUE
@@ -527,8 +540,8 @@ results <- list(
   S      = S,
   seq_dates = seq_dates,
   MSE    = MSE,    # or averaged MSE
-  W_shr  = W_shr_store,       # can be a list of matrices or one matrix
-  W_n    = W_n_store          # same
+  W_shr  = W_shr_store,  # can be a list of matrices or one matrix
+  W_n    = W_n_store     # same
 )
 
 file <- paste0(
