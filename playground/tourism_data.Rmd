@@ -629,3 +629,98 @@ accuracy_tr |>
     theme_minimal()
 ```
 
+
+# MinT with True W_h
+
+We use the out-of-sample base forecast errors after CV to estimate the covariance matrix W_h, then feed into the MinT reconciliation.
+
+```{r}
+# load out-of-sample forecast error (not squared) list from CV
+tourism_results_48cv_residbase <- readRDS("D:/Github/ReconCov/playground/tourism_results_48cv_residbase.rds")
+
+error_base_1step <- t(
+  sapply(tourism_results_48cv_residbase, function(fold) {
+    fold[1, ]
+  })
+)
+
+# plot heatmap for true W_h
+nearPD(cov(error_base_1step))$mat %>% as.matrix() %>% cov2cor() %>% plot_heatmap()
+```
+
+```{r}
+library(future.apply)
+library(progressr)
+
+handlers(global = TRUE) # Setup progress bar handler
+handlers("txtprogressbar")  # or "progress" for a fancier bar
+
+plan(multisession, workers = parallel::detectCores() - 2)
+
+
+# moving 1 month forward
+start_date <- visnights_full$Month[1]
+end_date <- yearmonth("2015-01")
+M <- 48
+seq_dates <- list(
+  start = start_date + 0:(M-1),
+  end = end_date + 0:(M-1)
+)
+
+# parallel with progress bar
+with_progress({
+  p <- progressor(along = 1:M)  # auto sets steps = length
+  
+  result_list <- future_lapply(
+    1:M, 
+    function(i) {
+      p(message = sprintf("Sim %d", i))  # advances safely
+      
+      start <- seq_dates$start[i]
+      end <- seq_dates$end[i]
+      run(
+        visnights_full,
+        S,
+        start,
+        end,
+        true_W_h = nearPD(cov(error_base_1step))$mat # use the true W_h
+      )
+    },
+    future.seed=TRUE
+  )
+})
+```
+
+```{r}
+# wrangle results, result_list is a list of matrices
+MSE_true <- Reduce(`+`, result_list) / length(result_list)
+
+# load previous results
+tourism_results_48cv <- readRDS("D:/Github/ReconCov/playground/tourism_results_48cv.rds")
+
+tourism_results_48cv$MSE$mint_true <- MSE_true
+```
+
+```{r}
+MSE_ts <- transform_sim_MSE(tourism_results_48cv$MSE, F)
+
+MSE_ts |>
+  group_by(series, h) |>
+  mutate(
+    base_MSE = MSE[.model == "base"]
+  ) |>
+  ungroup() |>
+  group_by(.model, h) |>
+  summarise(
+    MSE = mean(MSE),
+    base_MSE = mean(base_MSE),
+    pct_change = (MSE - base_MSE) / base_MSE * 100
+  ) |>
+  filter(h <=16) |>
+  ggplot(aes(x = h, y = pct_change, color = .model)) +
+  geom_line() +
+  labs(x = "Horizon", y = "% improvements",
+       title = "% relative improvements in MSE compared to Base") +
+  theme_minimal()
+```
+
