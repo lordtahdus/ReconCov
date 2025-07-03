@@ -208,14 +208,23 @@ run <- function(A = NULL, Sigma = NULL, message = F) {
     y - y_hat
   )
   window <- round(Tsplit * 0.7)
-  W_n <- novelist_cv(
+  # W_n <- novelist_cv(
+  #   y,
+  #   y_hat,
+  #   S,
+  #   window = window,
+  #   deltas = seq(0, 1, by = 0.05),
+  #   ensure_PD = TRUE,
+  #   message = message
+  # )
+  # C++ version
+  W_n <- novelist_cv_cpp(
     y,
     y_hat,
     S,
     window = window,
     deltas = seq(0, 1, by = 0.05),
-    ensure_PD = TRUE,
-    message = message
+    ensure_PD = TRUE
   )
 
   # # # # # #
@@ -265,7 +274,7 @@ handlers("txtprogressbar")  # or "progress" for a fancier bar
 
 plan(multisession, workers = parallel::detectCores() - 1)
 
-M <- 200
+M <- 50
 
 # PARALLEL
 # res_list <- future_lapply(seq_len(M), function(i) run(), future.seed=TRUE)
