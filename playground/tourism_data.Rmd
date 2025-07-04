@@ -599,7 +599,8 @@ accuracy_tr <- fc_tr %>%
     visnights_full,
     # by = c("h", ".model"),
     by = c("h", ".model", "State", "Region"),
-    measures = list(RMSE = RMSE, SSE = SSE, N = Nobs)
+    measures = list(RMSE = RMSE)
+    # measures = list(RMSE = RMSE, SSE = SSE, N = Nobs)
   )
 
 accuracy_tr %>% 
