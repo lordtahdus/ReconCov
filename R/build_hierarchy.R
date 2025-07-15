@@ -22,6 +22,7 @@
 #'   )
 #' )
 #'
+#' @importFrom Matrix sparseMatrix, Diagonal
 #' @export
 construct_S <- function(
     structure,
