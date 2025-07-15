@@ -1,0 +1,738 @@
+---
+title: "R Notebook"
+editor_options: 
+  chunk_output_type: console
+---
+
+
+```{r libs}
+# library(MASS)
+# library(matrixcalc)
+library(Matrix)
+library(tidyr)
+library(ggplot2)
+
+library(vctrs)
+library(fabletools)
+library(fable)
+library(feasts)
+library(tsibble)
+library(lubridate)
+library(dplyr)
+
+library(devtools)
+load_all()
+
+# library(purrr)
+```
+
+# Load data
+
+```{r}
+visnights_raw <- readr::read_csv(here::here("playground/data/visnights_monthly.csv")) |>
+  mutate(Month = yearmonth(Month)) |>
+  group_by(Month, Region) |>
+  summarise(Nights = sum(Nights), .groups = "drop")
+```
+
+```{r states column}
+# Define a mapping of regions to states -----------
+state_map <- list(
+  NSW = c(
+    "Blue Mountains", "Central Coast", "Central NSW", "Goulburn",
+    "Hunter", "New England North West", "North Coast NSW", "Outback NSW",
+    "Riverina", "Snowy Mountains", "South Coast", "Sydney",
+    "Capital Country"
+  ),
+  VIC = c(
+    "Ballarat", "Bendigo Loddon", "Central Murray", "Geelong and the Bellarine",
+    "Gippsland", "Great Ocean Road", "High Country", "Macedon", "Mallee",
+    "Melbourne", "Melbourne East", "Murray East", "Peninsula", "Phillip Island",
+    "Spa Country", "The Murray", "Upper Yarra", "Western Grampians", "Wimmera"
+  ),
+  QLD = c(
+    "Brisbane", "Bundaberg", "Capricorn", "Fraser Coast", "Gladstone",
+    "Gold Coast", "Mackay", "Outback Queensland", "Southern Queensland Country",
+    "Sunshine Coast", "Townsville", "Tropical North Queensland",
+    "Whitsundays"
+  ),
+  SA = c(
+    "Adelaide", "Adelaide Hills", "Barossa", "Clare Valley", "Eyre Peninsula",
+    "Fleurieu Peninsula", "Flinders Ranges and Outback", "Kangaroo Island",
+    "Limestone Coast", "Murray River, Lakes and Coorong", "Riverland",
+    "Yorke Peninsula"
+  ),
+  WA = c(
+    "Australia's Coral Coast", "Australia's Golden Outback",
+    "Australia's North West", "Australia's South West", "Destination Perth"
+  ),
+  TAS = c(
+    "Central Highlands", "East Coast", "Hobart and the South",
+    "Launceston and the North", "Lakes", "North West", "West Coast"
+  ),
+  NT = c(
+    "Alice Springs", "Barkly", "Darwin", "Katherine Daly",
+    "Litchfield Kakadu Arnhem", "Lasseter", "MacDonnell"
+  ),
+  ACT = c(
+    "Canberra"
+  )
+)
+# -----------
+
+region_state_lookup <- tibble(
+  State  = rep(names(state_map), lengths(state_map)),
+  Region = unlist(state_map)
+)
+
+visnights <- visnights_raw %>%
+  left_join(region_state_lookup, by = "Region") %>% 
+  select(Month, State, Region, Nights)
+```
+
+```{r}
+visnights %>% 
+  group_by(Month, State) %>%
+  summarise(Nights = sum(Nights), .groups = "drop") %>%
+  ggplot(aes(x = Month, y = Nights, color = State)) +
+    geom_line() +
+    guides(color = "none") +
+    theme_minimal()
+```
+
+
+# Modelling
+
+```{r}
+visnights_full <- visnights %>% 
+  as_tsibble(index = Month, key = c(State, Region)) %>% 
+  aggregate_key(State/Region, Nights = sum(Nights))
+
+visnights_full_2 <- visnights_full %>% 
+  filter(!(State == "ACT" & is_aggregated(Region))) # remove colinearity
+```
+
+
+## Base fc
+
+```{r}
+year_filter <- 2018
+fit <- visnights_full |>
+  # filter(year(Month) <= year_filter) |>
+  model(base = ETS(Nights)) %>% 
+  reconcile(
+    ols = min_trace(base, method = "ols"),
+    mint_shr = min_trace(base, method = "mint_shrink")
+  )
+
+# base forecasts
+h <- 12
+fc <- fit %>% 
+  forecast(h = h)
+```
+
+
+## S
+
+```{r S mat}
+key_data <- key_data(fit)
+agg_data <- fabletools:::build_key_data_smat(key_data)
+
+S <- matrix(0L, nrow = length(agg_data$agg), ncol = max(vec_c(!!!agg_data$agg)))
+S[length(agg_data$agg)*(vec_c(!!!agg_data$agg)-1) + rep(seq_along(agg_data$agg), lengths(agg_data$agg))] <- 1L
+
+# n_series <- length(agg_data$agg)
+# n_bottom <- length(agg_data$leaf)
+# S_dense <- matrix(0L, n_series, n_bottom)
+# for(i in seq_len(n_series)) {
+#   S_dense[i, agg_data$agg[[i]]] <- 1L
+# }
+
+# colnames
+colnames(S) <- key_data %>% 
+  filter(!is_aggregated(Region)) %>% 
+  pull(Region) %>% 
+  as.character()
+
+# rownames
+row_names <- key_data %>%
+  distinct(State, Region) %>%
+  mutate(
+    name = case_when(
+      Region == "<aggregated>" & State == "<aggregated>" ~ "Total",
+      Region == "<aggregated>" ~ as.character(State),
+      TRUE ~ as.character(Region)
+    )
+  )
+
+rownames(S) <- row_names$name %>% 
+  as.character()
+
+```
+
+## Get Data
+
+```{r y and yhat}
+# Get data from fit
+fit_augment <- fit %>% 
+  augment() %>% 
+  filter(.model == "base") %>%
+  left_join(row_names, by = c("State", "Region")) %>%
+  select(Month, State, Region, name, .fitted, Nights)
+
+y_hat <- fit_augment %>% 
+  as_tibble() %>%
+  select(.fitted, name, Month) %>%
+  pivot_wider(names_from = name, values_from = .fitted) %>% 
+  select(-Month) %>% 
+  as.matrix()
+
+y <- fit_augment %>% 
+  as_tibble() %>%
+  select(Nights, name, Month) %>%
+  pivot_wider(names_from = name, values_from = Nights) %>% 
+  select(-Month) %>% 
+  as.matrix()
+```
+
+```{r base_fc}
+base_fc <- fc %>% 
+  as_tibble() %>% 
+  filter(.model == "base") %>%
+  left_join(row_names, by = c("State", "Region")) %>%
+  select(name, .mean, Month) %>%
+  pivot_wider(names_from = name, values_from = .mean) %>%
+  select(-Month) %>% 
+  as.matrix()
+```
+
+```{r}
+actual <- visnights_full %>% 
+  filter(year(Month) > year_filter & year(Month) <= year_filter +1) %>% 
+  as_tibble() %>% 
+  arrange(State, Region) %>%
+  left_join(row_names, by = c("State", "Region")) %>%
+  select(name, Nights, Month) %>%
+  pivot_wider(names_from = name, values_from = Nights) %>%
+  select(-Month) %>%
+  as.matrix()
+```
+
+## Reconcile
+
+```{r cov ests}
+W_shr <- shrinkage_est(
+  y - y_hat
+)
+
+window <- round(dim(y)[1] * 0.5)
+W_n <- novelist_cv(
+  y,
+  y_hat,
+  S,
+  window = window,
+  deltas = seq(0, 1, by = 0.05),
+  ensure_PD = TRUE,
+  message = TRUE
+)
+```
+
+```{r recon}
+recon_mint_shr <- reconcile_mint(base_fc, S, W_shr$cov)
+recon_mint_n <- reconcile_mint(base_fc, S, W_n$cov)
+
+sample_cov <- compute_cov_matrix(y - y_hat, zero_mean = T)
+if (any(eigen(sample_cov)$values < 1e-8)) {
+  cat("Sample covariance for mint_sample is singular, using nearPD\n")
+  sample_cov <- nearPD(sample_cov)$mat
+}
+recon_mint_sample <- reconcile_mint(base_fc, S, sample_cov)
+```
+
+# Evaluation
+
+```{r}
+# fc %>% 
+#   accuracy(visnights_full, measures = list(RMSE = RMSE))
+# 
+# sqrt(colMeans((actual - base_fc)^2))
+
+ols_fc <- fc %>% 
+  as_tibble() %>% 
+  filter(.model == "ols") %>%
+  left_join(row_names, by = c("State", "Region")) %>%
+  select(name, .mean, Month) %>%
+  pivot_wider(names_from = name, values_from = .mean) %>%
+  select(-Month) %>% 
+  as.matrix()
+
+
+error_sq <- list(
+  base = ((actual - base_fc)^2),
+  ols = ((actual - ols_fc)^2),
+  mint_shr = ((actual - recon_mint_shr)^2),
+  mint_n = ((actual - recon_mint_n)^2),
+  mint_sample = ((actual - recon_mint_sample)^2)
+)
+error_sq <- transform_sim_MSE(error_sq, F)
+
+
+```
+
+```{r}
+error_sq |>
+  group_by(series, h) |>
+  mutate(
+    base_MSE = MSE[.model == "base"]
+  ) |>
+  ungroup() |>
+  group_by(.model, h) |>
+  summarise(
+    MSE = mean(MSE),
+    base_MSE = mean(base_MSE),
+    pct_change = (MSE - base_MSE) / base_MSE * 100
+  ) |>
+  filter(h <=16) |>
+  ggplot(aes(x = h, y = pct_change, color = .model)) +
+    geom_line() +
+    labs(x = "Horizon", y = "% relative improvements in MSE") +
+    theme_minimal()
+```
+
+# CV Parallel
+
+## run
+
+```{r}
+run <- function(
+    data, 
+    S, 
+    start, end,
+    true_W_h = NULL # if provided, will use only use this W_h for reconciliation
+) {
+  fit <- data |>
+    filter(Month >= start & Month <= end) |>
+    model(base = ETS(Nights))
+  
+  # base forecasts
+  h <- 12
+  fc <- fit %>% 
+    forecast(h = h)
+  
+  # Get data from fit
+  fit_augment <- fit %>% 
+    augment() %>% 
+    filter(.model == "base") %>%
+    left_join(row_names, by = c("State", "Region")) %>%
+    select(Month, State, Region, name, .fitted, Nights)
+  
+  y_hat <- fit_augment %>% 
+    as_tibble() %>%
+    select(.fitted, name, Month) %>%
+    pivot_wider(names_from = name, values_from = .fitted) %>% 
+    select(-Month) %>% 
+    as.matrix()
+  
+  y <- fit_augment %>% 
+    as_tibble() %>%
+    select(Nights, name, Month) %>%
+    pivot_wider(names_from = name, values_from = Nights) %>% 
+    select(-Month) %>% 
+    as.matrix()
+  
+  # Get base forecasts
+  base_fc <- fc %>% 
+    as_tibble() %>% 
+    left_join(row_names, by = c("State", "Region")) %>%
+    select(name, .mean, Month) %>%
+    pivot_wider(names_from = name, values_from = .mean) %>%
+    select(-Month) %>% 
+    as.matrix()
+  
+  # Get actual values
+  actual <- data %>% 
+    filter(Month > end & Month <= end + 12) %>% 
+    as_tibble() %>% 
+    arrange(State, Region) %>%
+    left_join(row_names, by = c("State", "Region")) %>%
+    select(name, Nights, Month) %>%
+    pivot_wider(names_from = name, values_from = Nights) %>%
+    select(-Month) %>%
+    as.matrix()
+  
+  # if true_W_h is provided, use it for mint_true
+  if (!is.null(true_W_h)) {
+    recon_mint_true <- reconcile_mint(base_fc, S, true_W_h)
+    e2 <- ((actual - recon_mint_true)^2)
+    return(e2)
+  }
+  # Otherwise run as usual
+  
+  # Cov estimators
+  W_shr <- shrinkage_est(
+    y - y_hat
+  )
+
+  window <- round(dim(y)[1] * 0.66)
+  W_n <- novelist_cv(
+    y,
+    y_hat,
+    S,
+    window = window,
+    deltas = seq(0, 1, by = 0.05),
+    ensure_PD = TRUE,
+    message = TRUE
+  )
+
+  # Reconcile
+  recon_mint_shr <- reconcile_mint(base_fc, S, W_shr$cov)
+  recon_mint_n <- reconcile_mint(base_fc, S, W_n$cov)
+
+  sample_cov <- compute_cov_matrix(y - y_hat, zero_mean = T)
+  if (any(eigen(sample_cov)$values < 1e-8)) {
+    cat("Sample covariance for mint_sample is singular, using nearPD\n")
+    sample_cov <- nearPD(sample_cov)$mat
+  }
+  recon_mint_sample <- reconcile_mint(base_fc, S, sample_cov)
+  
+  recon_ols <- reconcile_mint(base_fc, S, diag(rep(1, nrow(S)))) # identity matrix
+  
+  e2 <- list(
+    base = ((actual - base_fc)^2),
+    ols = ((actual - recon_ols)^2),
+    mint_shr = ((actual - recon_mint_shr)^2),
+    mint_n = ((actual - recon_mint_n)^2),
+    mint_sample = ((actual - recon_mint_sample)^2)
+  )
+  
+  return(list(
+    e2 = e2,
+    resid_base = actual - base_fc,
+    W_shr = W_shr$lambda,
+    W_n = c(W_n$lambda, W_n$delta)
+  ))
+}
+```
+
+## Parallel
+
+```{r}
+library(future.apply)
+library(progressr)
+
+handlers(global = TRUE) # Setup progress bar handler
+handlers("txtprogressbar")  # or "progress" for a fancier bar
+
+plan(multisession, workers = parallel::detectCores() - 2)
+
+
+# moving 1 month forward
+start_date <- visnights_full$Month[1]
+end_date <- yearmonth("2015-01")
+M <- 24
+seq_dates <- list(
+  start = start_date + 0:(M-1),
+  end = end_date + 0:(M-1)
+)
+
+# parallel with progress bar
+with_progress({
+  p <- progressor(along = 1:M)  # auto sets steps = length
+  
+  result_list <- future_lapply(
+    1:M, 
+    function(i) {
+      p(message = sprintf("Sim %d", i))  # advances safely
+      
+      start <- seq_dates$start[i]
+      end <- seq_dates$end[i]
+      run(
+        visnights_full,
+        S,
+        start,
+        end
+      )
+    },
+    future.seed=TRUE
+  )
+})
+```
+
+
+## Evaluation
+
+```{r}
+
+model_names <- c("base", "ols", "mint_shr", "mint_n", "mint_sample")
+SSE_cum <- setNames(
+  lapply(model_names, function(name) {
+    matrix(0, h, length(rownames(S)), dimnames = list(1:h, rownames(S)))
+  }),
+  model_names
+)
+
+# wrangle
+SSE_cum <- Reduce(function(acc, res) Map(`+`, acc, res$e2),
+                      result_list, init = SSE_cum)
+W_shr_store <- sapply(result_list, `[[`, "W_shr")
+W_n_store <- t(sapply(result_list, `[[`, "W_n")) ; colnames(W_n_store) <- c("lambda", "delta")
+
+MSE <- lapply(SSE_cum, function(mat) mat / M)
+```
+
+```{r}
+MSE_ts <- transform_sim_MSE(MSE, F)
+
+MSE_ts |>
+  group_by(series, h) |>
+  mutate(
+    base_MSE = MSE[.model == "base"]
+  ) |>
+  ungroup() |>
+  group_by(.model, h) |>
+  summarise(
+    MSE = mean(MSE),
+    base_MSE = mean(base_MSE),
+    pct_change = (MSE - base_MSE) / base_MSE * 100
+  ) |>
+  filter(h <=16) |>
+  ggplot(aes(x = h, y = pct_change, color = .model)) +
+  geom_line() +
+  labs(x = "Horizon", y = "% improvements",
+       title = "% relative improvements in MSE compared to Base") +
+  theme_minimal()
+```
+
+
+```{r}
+error_list <- purrr::map(result_list, "e2")
+# transform into df
+error_df <- transform_error_list(error_list)
+# box plot of 1-step-ahead relative improvement
+error_df %>%
+  filter(h == 1) %>%
+  group_by(.model, id) %>%
+  summarise(MSE = mean(e2)) %>%
+  # calculate relative improvement compared to base model
+  group_by(id) %>%
+  mutate(base_MSE = MSE[.model == "base"]) %>%
+  ungroup() %>%
+  mutate(pct_change = (MSE - base_MSE) / base_MSE * 100) %>%
+  # remove outliers from mint
+  filter(pct_change < 200) %>%
+  # plot
+  ggplot(aes(x = .model, y = pct_change, color = .model)) +
+    geom_boxplot() +
+    labs(x = "Model", y = "% relative improvements in MSE",
+         title = "% relative improvements in 1-step-ahead forecasts") +
+    theme_minimal()
+```
+
+```{r}
+plot(
+  W_n_store[,'lambda'],
+  W_n_store[,'delta']
+)
+hist(W_shr_store, main = "Shrinkage Estimator: lambda")
+```
+
+## Save
+
+```{r}
+resid_base <- lapply(result_list, `[[`, "resid_base")
+
+results <- list(
+  S      = S,
+  seq_dates = seq_dates,
+  MSE    = MSE,    # or averaged MSE
+  W_shr  = W_shr_store,  # can be a list of matrices or one matrix
+  W_n    = W_n_store     # same
+)
+
+file <- paste0(
+  "tourism_results_48cv"
+)
+saveRDS(results, file = paste("playground/", file, ".rds", sep = ""))
+
+saveRDS(error_list, file = paste("playground/", file, "_errorlist.rds", sep = ""))
+
+saveRDS(resid_base, file = paste("playground/", file, "_residbase.rds", sep = ""))
+
+```
+
+
+# CV Fabletools
+
+```{r}
+visnights_stretched <- visnights_full %>% 
+  slide_tsibble(.size = 205) %>% 
+  relocate(.id) %>% 
+  filter(.id <= 12)
+```
+
+```{r}
+fc_tr <- visnights_stretched |>
+  model(base = ETS(Nights)) %>% 
+  reconcile(
+    ols = min_trace(base, method = "ols"),
+    mint_shr = min_trace(base, method = "mint_shrink")
+  ) |>
+  forecast(h = 12)
+
+# Save results forecast
+saveRDS(fc_tr, file = "playground/tourism_fc_tr.rds")
+```
+
+```{r}
+SSE <- function(.resid, na.rm = TRUE, ...){
+  sum(.resid ^ 2, na.rm = na.rm)
+}
+Nobs <- function(.resid, na.rm = TRUE, ...){
+  length(.resid)
+}
+accuracy_tr <- fc_tr %>% 
+  group_by(.id, .model, State, Region) %>% 
+  mutate(h = row_number()) %>%
+  ungroup() %>%
+  as_fable(response = "Nights", distribution = Nights) %>% 
+  accuracy(
+    visnights_full,
+    # by = c("h", ".model"),
+    by = c("h", ".model", "State", "Region"),
+    measures = list(RMSE = RMSE)
+    # measures = list(RMSE = RMSE, SSE = SSE, N = Nobs)
+  )
+
+accuracy_tr %>% 
+  group_by(h, .model) %>% 
+  summarise(
+    RMSE = sqrt(mean(RMSE^2)),
+    .groups = "drop"
+  ) %>%
+  ggplot(aes(h, RMSE, color = .model)) +
+    geom_line()
+
+accuracy_tr |>
+  mutate(MSE = RMSE^2) %>% 
+  # group_by(h) %>% 
+  group_by(State, Region, h) |>
+  mutate(
+    base_MSE = MSE[.model == "base"]
+  ) |>
+  ungroup() |>
+  group_by(.model, h) |>
+  summarise(
+    RMSE = RMSE,
+    MSE = mean(MSE),
+    base_MSE = mean(base_MSE),
+    pct_change = (MSE - base_MSE) / base_MSE * 100
+  ) |>
+  ggplot(aes(x = h, y = pct_change, color = .model)) +
+    geom_line() +
+    labs(x = "Horizon", y = "% relative improvements in MSE") +
+    theme_minimal()
+```
+
+
+# MinT with True W_h
+
+We use the out-of-sample base forecast errors after CV to estimate the covariance matrix W_h, then feed into the MinT reconciliation.
+
+```{r}
+# load out-of-sample forecast error (not squared) list from CV
+tourism_results_48cv_residbase <- readRDS("D:/Github/ReconCov/playground/tourism_results_48cv_residbase.rds")
+
+error_base_1step <- t(
+  sapply(tourism_results_48cv_residbase, function(fold) {
+    fold[1, ]
+  })
+)
+
+# plot heatmap for true W_h
+cov(error_base_1step) %>% 
+  cov2cor() %>% 
+  plot_heatmap()
+nearPD(cov(error_base_1step))$mat %>% as.matrix() %>% cov2cor() %>% plot_heatmap()
+```
+
+```{r}
+library(future.apply)
+library(progressr)
+
+handlers(global = TRUE) # Setup progress bar handler
+handlers("txtprogressbar")  # or "progress" for a fancier bar
+
+plan(multisession, workers = parallel::detectCores() - 2)
+
+
+# moving 1 month forward
+start_date <- visnights_full$Month[1]
+end_date <- yearmonth("2015-01")
+M <- 48
+seq_dates <- list(
+  start = start_date + 0:(M-1),
+  end = end_date + 0:(M-1)
+)
+
+# parallel with progress bar
+with_progress({
+  p <- progressor(along = 1:M)  # auto sets steps = length
+  
+  result_list <- future_lapply(
+    1:M, 
+    function(i) {
+      p(message = sprintf("Sim %d", i))  # advances safely
+      
+      start <- seq_dates$start[i]
+      end <- seq_dates$end[i]
+      run(
+        visnights_full,
+        S,
+        start,
+        end,
+        true_W_h = nearPD(true_W_h)$mat # use the true W_h
+      )
+    },
+    future.seed=TRUE
+  )
+})
+```
+
+```{r}
+# wrangle results, result_list is a list of matrices
+MSE_true <- Reduce(`+`, result_list) / length(result_list)
+
+# load previous results
+tourism_results_48cv <- readRDS("D:/Github/ReconCov/playground/tourism_results_48cv.rds")
+
+tourism_results_48cv$MSE$mint_full <- MSE_true
+```
+
+```{r}
+MSE_ts <- transform_sim_MSE(tourism_results_48cv$MSE, F)
+
+MSE_ts |>
+  group_by(series, h) |>
+  mutate(
+    base_MSE = MSE[.model == "base"]
+  ) |>
+  ungroup() |>
+  group_by(.model, h) |>
+  summarise(
+    MSE = mean(MSE),
+    base_MSE = mean(base_MSE),
+    pct_change = (MSE - base_MSE) / base_MSE * 100
+  ) |>
+  filter(h <=16) |>
+  ggplot(aes(x = h, y = pct_change, color = .model)) +
+  geom_line() +
+  labs(x = "Horizon", y = "% improvements",
+       title = "% relative improvements in MSE compared to Base") +
+  theme_minimal()
+```
+
+```{r}
+# Save
+saveRDS(tourism_results_48cv, file = "playground/tourism_results_48cv.rds")
+```
+
