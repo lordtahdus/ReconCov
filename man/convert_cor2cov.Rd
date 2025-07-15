@@ -6,6 +6,15 @@
 \usage{
 convert_cor2cov(cor, stdevs = runif(nrow(cor), sqrt(2), sqrt(6)))
 }
+\arguments{
+\item{cor}{A square correlation matrix.}
+
+\item{stdevs}{A numeric vector of standard deviations for each variable.}
+}
+\value{
+A covariance matrix.
+}
 \description{
-Convert correlation to covariance matrix
+This function converts a correlation matrix to a covariance matrix
+using specified standard deviations.
 }

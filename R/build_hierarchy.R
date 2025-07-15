@@ -21,6 +21,8 @@
 #'     list(c(1,2))
 #'   )
 #' )
+#'
+#' @export
 construct_S <- function(
     structure,
     ascending = TRUE,
