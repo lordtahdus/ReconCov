@@ -22,7 +22,7 @@
 #'   )
 #' )
 #'
-#' @importFrom Matrix sparseMatrix, Diagonal
+#' @import Matrix
 #' @export
 construct_S <- function(
     structure,
@@ -59,7 +59,7 @@ construct_S <- function(
     # make one sparse submatrix
     rows <- rep(seq_along(mapping), vapply(mapping, length, 0L))
     cols <- match(unlist(mapping), unlist(prev_blocks))
-    blk <- sparseMatrix(
+    blk <- Matrix::sparseMatrix(
       i = rows, j = cols, x = 1L,
       dims = c(length(mapping), length(unlist(prev_blocks))),
       dimnames = list(names(mapping), unlist(prev_blocks))
@@ -69,7 +69,7 @@ construct_S <- function(
   }
 
   # Identity for bottom level
-  Ibot <- Diagonal(length(bottom_labels))
+  Ibot <- Matrix::Diagonal(length(bottom_labels))
   dimnames(Ibot) <- list(bottom_labels, bottom_labels)
 
   # Combine: all upper blocks first, then the bottom identity

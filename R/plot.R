@@ -9,6 +9,7 @@
 #' plot_heatmap(mat)
 #' plot_heatmap(mat, is_unit_spherical = TRUE)
 #'
+#' @import ggplot2
 #' @export
 plot_heatmap <- function(mat, is_unit_spherical = FALSE) {
   if (is_unit_spherical) {
