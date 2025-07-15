@@ -12,13 +12,13 @@ test_that("novelist_cv returns the right structure and PD covariance", {
   p  <- 4           # number of series
 
   y   <- matrix(rnorm(T*p), nrow = T, ncol = p)
-  base_fc <- y + matrix(rnorm(T*p, sd = 0.2), nrow = T, ncol = p)
+  y_hat <- y + matrix(rnorm(T*p, sd = 0.2), nrow = T, ncol = p)
 
   S_mat <- make_identity_S(p)      # 4x4
 
   res <- novelist_cv(
     y = y,
-    base_forecasts = base_fc,
+    y_hat = y_hat,
     S = S_mat,
     window_size = 10,
     deltas = c(0, 0.25, 0.5, 0.75, 1),
@@ -75,10 +75,10 @@ test_that("novelist_cv returns the right structure and PD covariance", {
 ##### 4. Custom error metric #########################################
 test_that("novelist_cv works with user‑supplied error_metric (MAE)", {
   y  <- matrix(rnorm(40),  nrow = 10, ncol = 4)
-  bf <- y + matrix(rnorm(40, sd = 0.15), nrow = 10)
+  y_hat <- y + matrix(rnorm(40, sd = 0.15), nrow = 10)
 
   res <- novelist_cv(
-    y, bf, S = make_identity_S(4),
+    y, y_hat, S = make_identity_S(4),
     window_size = 4,
     deltas      = c(0, 0.5, 1),
     error_metric = function(a, f) mean(abs(a - f), na.rm = TRUE), # MAE
@@ -93,18 +93,18 @@ test_that("novelist_cv works with user‑supplied error_metric (MAE)", {
 test_that("novelist_cv throws informative errors for bad inputs", {
   set.seed(5)
   y_ok  <- matrix(rnorm(30), nrow = 10, ncol = 3)
-  bf_ok <- y_ok
+  y_hat_ok <- y_ok
 
   S_ok <- make_identity_S(3)
 
   expect_error(
-    novelist_cv(y_ok, base_forecasts = y_ok[1:5, ], S_ok, window_size = 5)
+    novelist_cv(y_ok, y_ok[1:5, ], S_ok, window_size = 5)
   )
   expect_error(
-    novelist_cv(y_ok, bf_ok, S_ok, window_size = 1)
+    novelist_cv(y_ok, y_hat_ok, S_ok, window_size = 1)
   )
   expect_error(
-    novelist_cv(y_ok, bf_ok, S_ok, window_size = 15)
+    novelist_cv(y_ok, y_hat_ok, S_ok, window_size = 15)
   )
 })
 

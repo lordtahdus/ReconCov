@@ -21,7 +21,7 @@ load_all()
 # groups <- c(6,6,6,6,6,6)
 groups <- c(50,50)
 
-T <- 104
+T <- 304
 h <- 4
 Tsplit <- T - h
 
@@ -47,6 +47,12 @@ structure <- list(
 #   # list(c(1,2))
 #   list(1:6)
 # )
+structure <- list(
+  rep(10,10),
+  as.list(1:10),
+  list(1:4, 5:6, 7:10),
+  list(1:3)
+)
 
 (S <- construct_S(
   structure = structure,
@@ -56,15 +62,15 @@ structure <- list(
 order_S <- rownames(S)
 
 # ranges for coefs in VAR
-diag_range <- c(0.4, 0.8)
-offdiag_range <- c(-0.4, 0.4)
+diag_range <- c(-0.45, 0.45)
+offdiag_range <- c(-0.2, 0.2)
 
 ## VAR(1) block -------------------------
 A <- generate_block_diag(
   groups = groups,
   diag_range = diag_range,
   offdiag_range = offdiag_range,
-  stationary = FALSE,
+  stationary = TRUE,
 )$A
 
 plot_heatmap(A, TRUE)
@@ -104,7 +110,11 @@ Sigma <- convert_cor2cov(
   stdevs = runif(nrow(Sigma), 1*sqrt(2), 2*sqrt(3))
 )
 # flip signs
-V <- diag(x = sample(c(-1,1), size = sum(groups), replace = TRUE))
+V <- diag(x = sample(
+  c(1,1),
+  size = sum(groups), replace = TRUE,
+  prob= c(0.5, 0.5)
+))
 Sigma <- V %*% Sigma %*% V
 
 plot_heatmap(Sigma %>% cov2cor(), TRUE)
@@ -203,14 +213,23 @@ run <- function(A = NULL, Sigma = NULL, message = F) {
     y - y_hat
   )
   window <- round(Tsplit * 0.7)
-  W_n <- novelist_cv(
+  # W_n <- novelist_cv(
+  #   y,
+  #   y_hat,
+  #   S,
+  #   window = window,
+  #   deltas = seq(0, 1, by = 0.05),
+  #   ensure_PD = TRUE,
+  #   message = message
+  # )
+  # C++ version
+  W_n <- novelist_cv_cpp(
     y,
     y_hat,
     S,
     window = window,
     deltas = seq(0, 1, by = 0.05),
-    ensure_PD = TRUE,
-    message = message
+    ensure_PD = TRUE
   )
 
   # # # # # #
@@ -225,16 +244,21 @@ run <- function(A = NULL, Sigma = NULL, message = F) {
   }
   recon_mint_sample <- reconcile_mint(base_fc, S, sample_cov)
 
-  recon_mint_pop <- reconcile_mint(base_fc, S, Sigma)
+  # Sigma_true <- S %*% Sigma %*% t(S)
+  # Sigma_true <- nearPD(Sigma_true)$mat # ensure positive-definite
+  # recon_mint_true <- reconcile_mint(base_fc, S, Sigma_true)
+
+  recon_ols <- reconcile_mint(base_fc, S, diag(rep(1, nrow(S)))) # identity matrix
 
   # # # # # #
   # Return
   SSE <- list(
     base = ((actual - base_fc)^2),
+    ols = ((actual - recon_ols)^2),
     mint_shr = ((actual - recon_mint_shr)^2),
     mint_n = ((actual - recon_mint_n)^2),
-    mint_sample = ((actual - recon_mint_sample)^2),
-    mint_pop = ((actual - recon_mint_pop)^2)
+    mint_sample = ((actual - recon_mint_sample)^2)
+    # mint_true = ((actual - recon_mint_true)^2)
   )
 
   list(
@@ -253,17 +277,9 @@ library(progressr)
 handlers(global = TRUE) # Setup progress bar handler
 handlers("txtprogressbar")  # or "progress" for a fancier bar
 
-plan(multisession, workers = parallel::detectCores() - 2)
+plan(multisession, workers = parallel::detectCores() - 1)
 
-M <- 200
-
-model_names <- c("base", "mint_shr", "mint_n", "mint_sample", "mint_pop")
-SSE_cum <- setNames(
-  lapply(model_names, function(name) {
-    matrix(0, h, length(order_S), dimnames = list(1:h, order_S))
-  }),
-  model_names
-)
+M <- 50
 
 # PARALLEL
 # res_list <- future_lapply(seq_len(M), function(i) run(), future.seed=TRUE)
@@ -272,15 +288,41 @@ SSE_cum <- setNames(
 with_progress({
   p <- progressor(along = 1:M)  # auto sets steps = length
 
-  set.seed(1)
+  set.seed(2)
   res_list <- future_lapply(
-    1:M, function(i) {
-      p(message = sprintf("Sim %d", i))  # advances safely
-      run(A, Sigma, message = FALSE)
+    X = 1:M,
+    FUN = function(i) {
+      # this guarantees the bar advances even on error
+      on.exit(p(sprintf("Sim %d", i)), add = TRUE)
+
+      ## run the simulation but swallow any error
+      tryCatch(
+        run(A, Sigma, message = FALSE),
+
+        ## put the error into the return value instead of stopping
+        error = function(e) {
+          structure(list(message = e$message,
+                         call    = e$call,
+                         sim_id  = i),
+                    class = "sim_error")
+        }
+      )
     },
-    future.seed=TRUE
+    future.seed = TRUE
   )
 })
+
+# remove any error simulation
+cat("Any error in sim:", any(sapply(res_list, inherits, "sim_error")))
+res_list <- res_list[!sapply(res_list, inherits, "sim_error")]
+
+model_names <- c("base", "ols", "mint_shr", "mint_n", "mint_sample")
+SSE_cum <- setNames(
+  lapply(model_names, function(name) {
+    matrix(0, h, length(order_S), dimnames = list(1:h, order_S))
+  }),
+  model_names
+)
 
 # check orders of results
 res_list[[1]]$SSE |> names() == SSE_cum |> names()
@@ -293,7 +335,7 @@ W_n_store <- t(sapply(res_list, `[[`, "W_n")) ; colnames(W_n_store) <- c("lambda
 
 MSE <- lapply(SSE_cum, function(mat) mat / M)
 
-# plan(sequential) # Reset to sequential
+plan(sequential) # Reset to sequential
 
 
 # Warning message:
@@ -354,24 +396,28 @@ file <- paste0(
   S_string,
   "_T", T-h,
   "_M", M,
-  "_run3"
+  "_dense"
 )
 saveRDS(results, file = paste("sim/sim_results/", file, ".rds", sep = ""))
 
-saveRDS(error_list, file = paste("sim/sim_results/", file, "_errorlist.rds", sep = ""))
+saveRDS(error_list, file = paste("sim/sim_results/errorlist/", file, "_errorlist.rds", sep = ""))
 
-saveRDS(W1_hat_list, file = paste("sim/sim_results/", file, "_W1hat.rds", sep = ""))
+saveRDS(W1_hat_list, file = paste("sim/sim_results/W1hat/", file, "_W1hat.rds", sep = ""))
 
-# Inspect --------------------
+
+
+# Inspect -----------------------------------------------
 
 
 library(purrr)
 
+## Line plot -------------------
+
 MSE
 
-MSE_ts <- transform_sim_MSE(MSE)
+MSE_ts <- transform_sim_MSE(MSE, F)
 
-MSE_ts |> group_by(.model) |> index_by(h) |>
+MSE_ts |> group_by(.model, h) |>
   summarise(mse = mean(MSE)) |>
   ggplot(aes(x = h, y = mse, color = .model)) +
   geom_line() +
@@ -380,5 +426,59 @@ MSE_ts |> group_by(.model) |> index_by(h) |>
 
 
 MSE$mint_shr - MSE$mint_n
+
+MSE_ts |>
+  group_by(series, h) |>
+  mutate(
+    base_MSE = MSE[.model == "base"]
+  ) |>
+  ungroup() |>
+  group_by(.model, h) |>
+  summarise(
+    MSE = mean(MSE),
+    base_MSE = mean(base_MSE),
+    pct_change = (MSE - base_MSE) / base_MSE * 100
+  ) |>
+  filter(h <=16) |>
+  ggplot(aes(x = h, y = pct_change, color = .model)) +
+  geom_line() +
+  labs(x = "Horizon", y = "% improvements",
+       title = "% relative improvements in MSE compared to Base") +
+  theme_minimal()
+
+
+## Box plot -------------------
+
+# transform into df
+error_df <- transform_error_list(error_list)
+
+# box plot of 1-step-ahead error2
+error_df %>%
+  filter(h == 1) %>%  # filter for 1-step-ahead errors
+  group_by(.model, id) %>%
+  summarise(MSE = mean(e2)) %>%
+  ggplot(aes(x = .model, y = MSE, color = .model)) +
+    geom_boxplot() +
+    theme_minimal()
+
+# box plot of 1-step-ahead relative improvement
+error_df %>%
+  filter(h == 1) %>%
+  group_by(.model, id) %>%
+  summarise(MSE = mean(e2)) %>%
+  # calculate relative improvement compared to base model
+  group_by(id) %>%
+  mutate(base_MSE = MSE[.model == "base"]) %>%
+  ungroup() %>%
+  mutate(pct_change = (MSE - base_MSE) / base_MSE * 100) %>%
+  # remove outliers from mint
+  filter(pct_change < 200) %>%
+  # plot
+  ggplot(aes(x = .model, y = pct_change, color = .model)) +
+    geom_boxplot() +
+    labs(x = "Model", y = "% relative improvements in MSE",
+         title = "% relative improvements in MSE compared to base, 1-step-ahead forecasts") +
+    theme_minimal()
+
 
 

@@ -145,6 +145,7 @@ novelist_est <- function(
 #' @param resid A numeric matrix of residuals with row obs and col variables.
 #' @param zero_mean Logical; if TRUE, residuals are assumed to have zero mean.
 #'
+#' @export
 compute_cov_matrix <- function(resid, zero_mean) {
   T <- nrow(resid)
   if (zero_mean) {

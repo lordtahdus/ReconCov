@@ -6,7 +6,7 @@
 \usage{
 novelist_cv(
   y,
-  base_forecasts,
+  y_hat,
   S,
   window_size,
   deltas = seq(0, 1, by = 0.05),
@@ -19,7 +19,7 @@ novelist_cv(
 \arguments{
 \item{y}{A matrix of actual values (dim T by p),}
 
-\item{base_forecasts}{A matrix of base forecasts (dim T by p).}
+\item{y_hat}{A matrix of fitted values (dim T by p).}
 
 \item{S}{A matrix of reconciliation structure (dim p by b; b is number of bottom series).}
 
@@ -49,7 +49,7 @@ on validation windows.
 }
 \details{
 This approach loops through each possible validation segment in a rolling manner:
-  for i in window_size:(T-1), use base_resid[(i-window_size+1):i, ] as training data
+  for i in window_size:(T-1), use resid[(i-window_size+1):i, ] as training data
   then produce a reconciled forecast for time i+1 and measure the error.
 The final best delta is the one that yields the lowest error measure.
 }
