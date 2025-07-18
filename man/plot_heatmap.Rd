@@ -4,12 +4,24 @@
 \alias{plot_heatmap}
 \title{Plot a heatmap of a matrix}
 \usage{
-plot_heatmap(mat, is_unit_spherical = FALSE)
+plot_heatmap(
+  mat,
+  is_unit_spherical = FALSE,
+  low_color = "blue",
+  high_color = "red",
+  mid_color = "white"
+)
 }
 \arguments{
 \item{mat}{A matrix to be plotted as a heatmap.}
 
 \item{is_unit_spherical}{Logical, if TRUE, the color scale is set to [-1, 1].}
+
+\item{low_color}{Color for low values in the heatmap.}
+
+\item{high_color}{Color for high values in the heatmap.}
+
+\item{mid_color}{Color for mid values in the heatmap.}
 }
 \value{
 A ggplot object representing the heatmap.
