@@ -124,7 +124,9 @@ novelist_est <- function(
   if (ensure_PD) {
     # Check if W is positive definite
     if (any(eigen(W, only.values = TRUE)$values <= 1e-8)) {
-      W <- Matrix::nearPD(W)$mat
+      W <- as.matrix(
+        Matrix::nearPD(W)$mat
+      )
       # TODO: any better way?
     }
   }
