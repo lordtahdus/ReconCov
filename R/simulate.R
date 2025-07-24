@@ -250,6 +250,14 @@ generate_block_diag <- function(
 
 #' Convert correlation to covariance matrix
 #'
+#' This function converts a correlation matrix to a covariance matrix
+#' using specified standard deviations.
+#'
+#' @param cor A square correlation matrix.
+#' @param stdevs A numeric vector of standard deviations for each variable.
+#' @return A covariance matrix.
+#'
+#' @export
 convert_cor2cov <- function(
     cor,
     stdevs = runif(nrow(cor), sqrt(2), sqrt(6))

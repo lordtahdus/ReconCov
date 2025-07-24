@@ -10,6 +10,7 @@ novelist_cv(
   S,
   window_size,
   deltas = seq(0, 1, by = 0.05),
+  h = 1,
   zero_mean = TRUE,
   error_metric = function(actual, fc) mean((actual - fc)^2, na.rm = TRUE),
   ensure_PD = TRUE,
@@ -26,6 +27,8 @@ novelist_cv(
 \item{window_size}{The length of the rolling window n.}
 
 \item{deltas}{A numeric vector of candidate threshold values in [0,1].}
+
+\item{h}{The forecast horizon from 1 to h (default is 1).}
 
 \item{zero_mean}{Logical, whether to treat the residuals as zero mean in the covariance.}
 

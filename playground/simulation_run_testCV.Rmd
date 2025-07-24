@@ -1,0 +1,462 @@
+---
+title: "R Notebook"
+editor_options: 
+  chunk_output_type: console
+---
+
+# Description
+
+This script evaluates test set using rolling-window cross-validation approach
+This is suitable only when we have just one data set
+
+
+```{r}
+library(MASS)
+# library(matrixcalc)
+library(Matrix)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+
+library(fabletools)
+library(fable)
+library(feasts)
+
+library(devtools)
+load_all()
+```
+
+
+# Parameters
+
+```{r}
+groups <- c(2,2)
+T <-  51
+Tsplit <- 45
+diag_range <- c(0.4, 0.8)
+offdiag_range <- c(-0.8, 0.8)
+
+A <- generate_block_diag(
+  groups = groups,
+  diag_range = diag_range,
+  offdiag_range = offdiag_range
+)$A
+
+rho <- runif(length(groups), 0.6, 0.9)
+Sigma <- generate_cor(
+  groups = groups,
+  rho = rho,
+  # delta = min(rho) * 0.5,
+  delta = 0.15,
+  # epsilon = (1-max(rho)) * 0.5,
+  epsilon = 0.15,
+  eidim = length(groups)
+)
+Sigma <- convert_cor2cov(Sigma)
+# Sigma <- flip_signs_mat(Sigma, flip_prob = 0.5, ensure_PD = T)
+Sigma %>% eigen(only.values = TRUE)
+
+V <- diag(x = sample(c(-1,1), size = sum(groups), replace = TRUE))
+Sigma <- V %*% Sigma %*% V
+
+bottom <- simulate_bottom_var(groups, T, intercept = 100, A=A, Sig=Sigma)
+plot(as.ts(bottom$Y))
+```
+
+```{r}
+structure <- list(
+  groups,
+  as.list(seq(1,length(groups))),
+  list(c(1,2))
+)
+S <- construct_S(
+  structure = structure,
+  sparse = FALSE,
+  ascending = FALSE
+)
+```
+
+```{r}
+h <- 5
+
+hts_mat <- bottom$Y %*% t(S)
+
+hts <- hts_mat %>% 
+  as.data.frame() %>% 
+  mutate(time = seq(1, nrow(hts_mat))) %>% 
+  # select(time, everything()) %>% 
+  as_tsibble(index = time) %>% 
+  pivot_longer(
+    cols = -time,
+    names_to = "series",
+    values_to = "value"
+  )
+
+hts_slide <- hts %>% 
+  tsibble::slide_tsibble(.size = Tsplit) %>% 
+  filter(.id <= T-Tsplit)
+
+fit_slide <- hts_slide %>% 
+  model(
+    arima = ARIMA(value)
+  )
+
+fc_slide <- fit_slide |>
+  forecast(h = h) |>
+  group_by(.id, series) |>
+  mutate(h = row_number()) |>
+  ungroup() |>
+  filter(time <= T) |>
+  as_fable(response = "value", distribution = value)
+
+# fc_slide |>
+#   accuracy(hts, 
+#            by = c("h", ".model", "series")) |>
+#   ggplot(aes(x = h, y = RMSE)) +
+#     geom_point() +
+#     facet_wrap(~series)
+```
+
+# CV
+
+```{r}
+fc_new <- fc_slide[0, ] # empty tibble to store results
+deltas <- seq(0,1,by=0.05)
+
+
+# RUN CROSS VALIDATION
+# system.time(
+for (i in seq(T-Tsplit)) {
+  message("Iteration: ", i)
+  
+  start <- i
+  end <- i + Tsplit - 1
+  test_end <- min(end + h, T)
+  
+  # Get training and test data
+  y <- hts_mat[start:end, rownames(S)]
+  actual <- hts_mat[(end + 1):test_end, rownames(S)]
+  
+  y_hat <- fit_slide %>% 
+    augment() %>% 
+    filter(.id == i) %>%
+    select(series, time, .fitted) %>%
+    pivot_wider(names_from = series, values_from = .fitted, names_sort = FALSE) %>% 
+    as_tibble() %>% 
+    select(-time) %>% 
+    as.matrix()
+  y_hat <- y_hat[,rownames(S)]
+  
+  base_fc <- fc_slide %>% 
+    as_tibble() %>% 
+    filter(.id == i) %>% 
+    select(series, .mean, time) %>%
+    pivot_wider(names_from = series, values_from = .mean) %>%
+    select(-time) %>% 
+    as_tibble() %>% 
+    as.matrix()
+  base_fc <- base_fc[,rownames(S)]
+  
+  # Get covariance estimates
+  W_shr <- shrinkage_est(
+    y - y_hat
+  )
+  W_n <- novelist_cv(
+    y,
+    y_hat,
+    S,
+    window = round(Tsplit/2),
+    message = FALSE
+  )
+  
+  # Reconcile
+  recon_mint_shr <- reconcile_mint(base_fc, S, W_shr$cov)
+  recon_mint_n <- reconcile_mint(base_fc, S, W_n$cov)
+  recon_mint_sample <- reconcile_mint(base_fc, S, compute_cov_matrix(y-y_hat, zero_mean = T))
+  
+  # Organise reconciled results into the fc_new object
+  shr_fc <- as_tibble(recon_mint_shr) %>% 
+    mutate(h = row_number()) %>% 
+    pivot_longer(
+      cols = -h,
+      names_to = "series",
+      values_to = ".mean"
+    ) %>%
+    mutate(
+      .id    = i,
+      .model = "mint_shrink",
+      time   = end + h,
+      value  = NA
+    ) %>%
+    select(.id, series, .model, time, value, .mean, h)
+  
+  n_fc <- as_tibble(recon_mint_n) %>% 
+    mutate(h = row_number()) %>% 
+    pivot_longer(
+      cols = -h,
+      names_to = "series",
+      values_to = ".mean"
+    ) %>%
+    mutate(
+      .id    = i,
+      .model = "mint_novelist",
+      time   = end + h,
+      value  = NA
+    ) %>%
+    select(.id, series, .model, time, value, .mean, h)
+  
+  sample_fc <- as_tibble(recon_mint_sample) %>%
+    mutate(h = row_number()) %>% 
+    pivot_longer(
+      cols = -h,
+      names_to = "series",
+      values_to = ".mean"
+    ) %>%
+    mutate(
+      .id    = i,
+      .model = "mint_sample",
+      time   = end + h,
+      value  = NA
+    ) %>%
+    select(.id, series, .model, time, value, .mean, h)
+  
+  fc_new <- bind_rows(fc_new, shr_fc, n_fc, sample_fc)
+}
+# )
+fc_new <- fc_new |>
+    mutate(value = distributional::dist_normal(.mean, NA)) 
+
+fc_full <- bind_rows(fc_slide, fc_new) 
+
+results <- fc_full |>
+  accuracy(hts, 
+           by = c("h", ".model", "series")) 
+```
+
+```{r}
+results |> group_by(h, .model) |>
+  summarise(mse = mean(RMSE^2)) |>
+  ggplot(aes(x = h, y = mse, color = .model)) +
+    geom_line() +
+    labs(x = "Horizon", y = "MSE") +
+    theme_minimal()
+```
+
+
+```{r}
+write.csv(
+  results,
+  file = "D:/Github/ReconCov/playground/sim_results/sim4.csv"
+)
+```
+
+```{r}
+read.csv(
+  file = "D:/Github/ReconCov/playground/sim_results/sim3.csv"
+) %>% 
+  group_by(h, .model) |>
+  summarise(rmse = mean(RMSE)) |>
+  ggplot(aes(x = h, y = rmse, color = .model)) +
+    geom_line() +
+    labs(x = "Horizon", y = "RMSE") +
+    theme_minimal()
+```
+
+
+# Parallel
+
+```{r}
+library(foreach)
+library(doParallel)
+```
+
+```{r}
+ncores <- parallel::detectCores() - 4
+cl     <- makeCluster(ncores)
+registerDoParallel(cl)
+
+system.time(
+fc_new <- foreach(i = seq_len(T - Tsplit),
+                  .combine = bind_rows,
+                  .packages = c("tidyverse","distributional", "fpp3", "ReconCov")) %dopar% {
+  message("Iteration: ", i)
+  
+  start <- i
+  end <- i + Tsplit - 1
+  test_end <- min(end + h, T)
+  
+  # Get training and test data
+  y <- hts_mat[start:end, rownames(S)]
+  actual <- hts_mat[(end + 1):test_end, rownames(S)]
+  
+  y_hat <- fit_slide %>% 
+    augment() %>% 
+    filter(.id == i) %>%
+    select(series, time, .fitted) %>%
+    pivot_wider(names_from = series, values_from = .fitted, names_sort = FALSE) %>% 
+    as_tibble() %>% 
+    select(-time) %>% 
+    as.matrix()
+  y_hat <- y_hat[,rownames(S)]
+  
+  base_fc <- fc_slide %>% 
+    as_tibble() %>% 
+    filter(.id == i) %>% 
+    select(series, .mean, time) %>%
+    pivot_wider(names_from = series, values_from = .mean) %>%
+    select(-time) %>% 
+    as_tibble() %>% 
+    as.matrix()
+  base_fc <- base_fc[,rownames(S)]
+  
+  # Get covariance estimates
+  W_shr <- shrinkage_est(
+    y - y_hat
+  )
+  W_n <- novelist_cv(
+    y,
+    y_hat,
+    S,
+    window = round(Tsplit/2)
+  )
+  
+  # Reconcile
+  recon_mint_shr <- reconcile_mint(base_fc, S, W_shr$cov)
+  recon_mint_n <- reconcile_mint(base_fc, S, W_n$cov)
+  
+  # Organise reconciled results into the fc_new object
+  shr_fc <- as_tibble(recon_mint_shr) %>% 
+    mutate(h = row_number()) %>% 
+    pivot_longer(
+      cols = -h,
+      names_to = "series",
+      values_to = ".mean"
+    ) %>%
+    mutate(
+      .id    = i,
+      .model = "mint_shrink",
+      time   = end + h,
+      value  = NA
+    ) %>%
+    select(.id, series, .model, time, value, .mean, h)
+  
+  n_fc <- as_tibble(recon_mint_n) %>% 
+    mutate(h = row_number()) %>% 
+    pivot_longer(
+      cols = -h,
+      names_to = "series",
+      values_to = ".mean"
+    ) %>%
+    mutate(
+      .id    = i,
+      .model = "mint_novelist",
+      time   = end + h,
+      value  = NA
+    ) %>%
+    select(.id, series, .model, time, value, .mean, h)
+  
+  bind_rows(shr_fc, n_fc)
+}
+)
+stopCluster(cl)
+
+# then same post-processing
+fc_new <- fc_new %>% mutate(value = distributional::dist_normal(.mean, NA))
+fc_full <- bind_rows(fc_slide, fc_new)
+results <- accuracy(fc_full, hts, by = c("h",".model","series"))
+```
+
+```{r}
+library(furrr)        # loads future and purrr-style API
+plan(multisession)
+
+reconcile_i <- function(i) {
+  message("Iteration: ", i)
+  
+  start <- i
+  end <- i + Tsplit - 1
+  test_end <- min(end + h, T)
+  
+  # Get training and test data
+  y <- hts_mat[start:end, rownames(S)]
+  actual <- hts_mat[(end + 1):test_end, rownames(S)]
+  
+  y_hat <- fit_slide %>% 
+    augment() %>% 
+    filter(.id == i) %>%
+    select(series, time, .fitted) %>%
+    pivot_wider(names_from = series, values_from = .fitted, names_sort = FALSE) %>% 
+    as_tibble() %>% 
+    select(-time) %>% 
+    as.matrix()
+  y_hat <- y_hat[,rownames(S)]
+  
+  base_fc <- fc_slide %>% 
+    as_tibble() %>% 
+    filter(.id == i) %>% 
+    select(series, .mean, time) %>%
+    pivot_wider(names_from = series, values_from = .mean) %>%
+    select(-time) %>% 
+    as_tibble() %>% 
+    as.matrix()
+  base_fc <- base_fc[,rownames(S)]
+  
+  # Get covariance estimates
+  W_shr <- shrinkage_est(
+    y - y_hat
+  )
+  W_n <- novelist_cv(
+    y,
+    y_hat,
+    S,
+    window = round(Tsplit/2),
+    message = FALSE
+  )
+  
+  # Reconcile
+  recon_mint_shr <- reconcile_mint(base_fc, S, W_shr$cov)
+  recon_mint_n <- reconcile_mint(base_fc, S, W_n$cov)
+  
+  # Organise reconciled results into the fc_new object
+  shr_fc <- as_tibble(recon_mint_shr) %>% 
+    mutate(h = row_number()) %>% 
+    pivot_longer(
+      cols = -h,
+      names_to = "series",
+      values_to = ".mean"
+    ) %>%
+    mutate(
+      .id    = i,
+      .model = "mint_shrink",
+      time   = end + h,
+      value  = NA
+    ) %>%
+    select(.id, series, .model, time, value, .mean, h)
+  
+  n_fc <- as_tibble(recon_mint_n) %>% 
+    mutate(h = row_number()) %>% 
+    pivot_longer(
+      cols = -h,
+      names_to = "series",
+      values_to = ".mean"
+    ) %>%
+    mutate(
+      .id    = i,
+      .model = "mint_novelist",
+      time   = end + h,
+      value  = NA
+    ) %>%
+    select(.id, series, .model, time, value, .mean, h)
+  
+  bind_rows(, shr_fc, n_fc)
+}
+
+system.time(
+  
+fc_new <- future_map_dfr(
+  .x = seq_len(T - Tsplit),
+  .f = reconcile_i
+)
+)
+```
+

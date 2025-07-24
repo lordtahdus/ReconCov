@@ -9,6 +9,7 @@
 #' @param S A matrix of reconciliation structure (dim p by b; b is number of bottom series).
 #' @param window_size The length of the rolling window n.
 #' @param deltas A numeric vector of candidate threshold values in [0,1].
+#' @param h The forecast horizon from 1 to h (default is 1).
 #' @param reconcile_forecast .....
 #' @param zero_mean Logical, whether to treat the residuals as zero mean in the covariance.
 #' @param error_metric An error measure function for given actual and reconciled forecasts.
@@ -33,6 +34,7 @@ novelist_cv <- function(
     S,
     window_size,
     deltas = seq(0, 1, by = 0.05),
+    h = 1,
     # reconcile_forecast = NULL,
     zero_mean = TRUE,
     error_metric = function(actual, fc) mean((actual - fc)^2, na.rm = TRUE),
@@ -57,15 +59,15 @@ novelist_cv <- function(
 
   # Rolling over each possible validation step
   # i means the "last index" of the training set is i.
-  # Then the "validation" point is i+1.
-  for (i in window_size:(T - 1)) {
+  # Then the "validation" point is i+1 to i+h.
+  for (i in window_size:(T - h)) {
 
     # Training residuals from (i-window_size+1) to i
     train_resid <- resid[(i - window_size + 1):i, , drop=FALSE] # drop=F keep matrix structure
 
-    # The actual data at time i+1
-    actual_next <- y[i+1, ]
-    fitted_next <- y_hat[i+1, ]
+    # The actual data at time i+1 to i+h
+    actual_next <- y[(i+1) : (i+h), ]
+    fitted_next <- y_hat[(i+1) : (i+h), ]
 
     # Now loop over candidate threshold delta
     for(delta in deltas){
