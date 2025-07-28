@@ -1,17 +1,17 @@
 Package: ReconCov
 Type: Package
-Title: What the Package Does (Title Case)
+Title: Forecasting Reconciliation - Min Trace method with alternative covariance estimators.
 Version: 0.1.0
 Authors@R: c(
     person(
-      "Jane", "Doe",
-      email = "jane@example.com",
+      "Vincent", "Su",
+      email = "vincent.su@monash.edu",
       role = c("aut", "cre")
     )
   )
-Description: More about what it does (maybe more than one line).
-    Continuation lines should be indented.
-License: What license is it under?
+Description: This package is for Honours Research in Forecast Reconciliation.
+    Implementing Min Trace methods with Shrinkage estimator, NOVELIST estimator, and more.
+License: GPL (>= 3)
 Encoding: UTF-8
 LazyData: true
 Suggests: 
