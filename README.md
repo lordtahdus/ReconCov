@@ -13,12 +13,6 @@ This package is also built for simulations: generating hierarchical data with cu
 
 ## Installation
 
-You can include the following **Installation** section in your README or documentation:
-
----
-
-## Installation
-
 You can install the latest development release directly from GitHub:
 
 ```r
