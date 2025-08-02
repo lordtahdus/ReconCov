@@ -10,5 +10,5 @@ reconcile_mint_cpp(base_forecasts, S, W)
 Reconcile forecasts using MinT formula in C++
 }
 \seealso{
-\code{\link[=reconcile_mint]}
+[reconcile_mint()]
 }

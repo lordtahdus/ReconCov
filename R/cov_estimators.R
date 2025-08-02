@@ -69,7 +69,8 @@ shrinkage_est <- function(resid, lambda = NULL, zero_mean = TRUE){
 #' @return A list containing:
 #'   \item{lambda}{the optimal shrinkage intensity}
 #'   \item{cov.novelist}{the NOVELIST covariance matrix}
-#'
+#' 
+#' @import Matrix
 #' @export
 novelist_est <- function(
     resid,

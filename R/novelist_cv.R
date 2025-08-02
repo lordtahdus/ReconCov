@@ -26,7 +26,8 @@
 #'   for i in window_size:(T-1), use resid[(i-window_size+1):i, ] as training data
 #'   then produce a reconciled forecast for time i+1 and measure the error.
 #' The final best delta is the one that yields the lowest error measure.
-#'
+#' 
+#' @import Matrix
 #' @export
 novelist_cv <- function(
     y,

@@ -45,7 +45,7 @@ arma::mat make_PD_cpp(
 
 //' Reconcile forecasts using MinT formula in C++
 //'
-//' @seealso \code{\link[=reconcile_mint]}
+//' @seealso [reconcile_mint()]
 //' @export
 // [[Rcpp::export]]
 arma::mat reconcile_mint_cpp(
@@ -72,7 +72,7 @@ arma::mat reconcile_mint_cpp(
 
 //' Rolling Cross-Validation for NOVELIST Threshold Selection (C++ accelerated)
 //'
-//' @seealso \code{\link[=novelist_cv]}
+//' @seealso [novelist_cv()]
 //' @note This function use different enforcing PD method.
 //'
 //' @export
