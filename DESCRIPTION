@@ -19,8 +19,16 @@ Suggests:
 Config/testthat/edition: 3
 RoxygenNote: 7.3.2
 Imports:
-  Rcpp,
-  RcppArmadillo
+    dplyr,
+    ggplot2,
+    Matrix,
+    purrr,
+    Rcpp,
+    RcppArmadillo,
+    reshape2,
+    tibble,
+    tidyr,
+    tsibble
 LinkingTo:
   Rcpp,
   RcppArmadillo

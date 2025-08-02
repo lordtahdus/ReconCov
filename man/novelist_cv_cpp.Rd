@@ -22,5 +22,5 @@ Rolling Cross-Validation for NOVELIST Threshold Selection (C++ accelerated)
 This function use different enforcing PD method.
 }
 \seealso{
-\code{\link[=novelist_cv]}
+[novelist_cv()]
 }

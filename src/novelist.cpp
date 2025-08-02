@@ -69,7 +69,7 @@ arma::mat compute_var_cor_matrix_cpp(
 
 //' @title NOVELIST covariance estimator, Rcpp version
 //'
-//' @seealso \code{\link[=novelist_est]}
+//' @seealso [novelist_est()]
 //' @useDynLib ReconCov
 //' @import Rcpp
 //' @importFrom Rcpp sourceCpp

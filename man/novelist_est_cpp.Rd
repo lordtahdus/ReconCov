@@ -10,5 +10,5 @@ novelist_est_cpp(resid, delta, lambda_in = NULL, zero_mean = TRUE)
 NOVELIST covariance estimator, Rcpp version
 }
 \seealso{
-\code{\link[=novelist_est]}
+[novelist_est()]
 }

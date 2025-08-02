@@ -3,7 +3,7 @@
 
 #' @title NOVELIST covariance estimator, Rcpp version
 #'
-#' @seealso \code{\link[=novelist_est]}
+#' @seealso [novelist_est()]
 #' @useDynLib ReconCov
 #' @import Rcpp
 #' @importFrom Rcpp sourceCpp
@@ -29,7 +29,7 @@ make_PD_cpp <- function(W, tol = 1e-6) {
 
 #' Reconcile forecasts using MinT formula in C++
 #'
-#' @seealso \code{\link[=reconcile_mint]}
+#' @seealso [reconcile_mint()]
 #' @export
 reconcile_mint_cpp <- function(base_forecasts, S, W) {
     .Call('_ReconCov_reconcile_mint_cpp', PACKAGE = 'ReconCov', base_forecasts, S, W)
@@ -37,7 +37,7 @@ reconcile_mint_cpp <- function(base_forecasts, S, W) {
 
 #' Rolling Cross-Validation for NOVELIST Threshold Selection (C++ accelerated)
 #'
-#' @seealso \code{\link[=novelist_cv]}
+#' @seealso [novelist_cv()]
 #' @note This function use different enforcing PD method.
 #'
 #' @export
