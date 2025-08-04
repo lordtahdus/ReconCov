@@ -174,8 +174,8 @@ shrinkage_pc_est <- function(
   # Perform PCA to extract factors
   pca <- prcomp(resid, center = !zero_mean, scale. = FALSE)
 
-  B <- pca$rotation[,1:K] # loadings
-  F <- pca$x[,1:K] # factor scores
+  B <- pca$rotation[, 1:K, drop = FALSE] # loadings
+  F <- pca$x[, 1:K, drop = FALSE] # factor scores
   
   remainder <- resid - F %*% t(B) # residuals
   
@@ -184,7 +184,8 @@ shrinkage_pc_est <- function(
   W_remainder <- shr_results$cov
   
   # Reconstruct the full covariance matrix
-  W <- B %*% diag(pca$sdev[1:K]^2) %*% t(B) + W_remainder
+  W_pc <- B %*% diag(pca$sdev[1:K]^2, nrow = K, ncol = K) %*% t(B)
+  W <- W_pc + W_remainder
   
   return(list(
     lambda = shr_results$lambda,
@@ -235,8 +236,8 @@ novelist_pc_est <- function(
   # Perform PCA to extract factors
   pca <- prcomp(resid, center = !zero_mean, scale. = FALSE)
 
-  B <- pca$rotation[,1:K] # loadings
-  F <- pca$x[,1:K] # factor scores
+  B <- pca$rotation[, 1:K, drop = FALSE] # loadings
+  F <- pca$x[, 1:K, drop = FALSE] # factor scores
   
   remainder <- resid - F %*% t(B) # residuals
   
@@ -249,7 +250,8 @@ novelist_pc_est <- function(
   W_remainder <- nov_results$cov
   
   # Reconstruct the full covariance matrix
-  W <- B %*% diag(pca$sdev[1:K]^2) %*% t(B) + W_remainder
+  W_pc <- B %*% diag(pca$sdev[1:K]^2, nrow = K, ncol = K) %*% t(B)
+  W <- W_pc + W_remainder
   
   if (ensure_PD) {
     if (any(eigen(W)$values <= 1e-8)) {
