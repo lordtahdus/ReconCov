@@ -142,13 +142,26 @@ novelist_est <- function(
 
 #' Shrinkage Estimator for Covariance Matrix with PCA
 #' 
+#' Estimates a covariance matrix using a shrinkage approach with PCA adjustment.
+#' This function first performs PCA on the residuals to extract K largest PCs,
+#' then applies the shrinkage estimator on the remainder part.
+#' 
+#' @param resid A numeric matrix of residuals.
+#' @param K Integer; number of principal components to extract.
+#' @param lambda Numeric; shrinkage intensity in [0, 1]. If missing, it is computed.
+#' @param zero_mean Logical; if TRUE, residuals are assumed to have zero mean. Default is TRUE.
+#' 
+#' @return A list containing:
+#'   \item{lambda}{the optimal shrinkage intensity}
+#'   \item{cov}{the shrinkage covariance matrix with PCA adjustment}
+#' 
+#' @seealso \code{\link{shrinkage_est}} for the original shrinkage estimator.
 #' @export
 shrinkage_pc_est <- function(
   resid,
   K = 1,
   lambda = NULL,
-  zero_mean = TRUE,
-  ensure_PD = TRUE
+  zero_mean = TRUE
 ){
   # Check input
   if (any(is.na(resid))) {
@@ -181,6 +194,23 @@ shrinkage_pc_est <- function(
 
 
 #' NOVELIST Estimator for Covariance Matrix with PCA
+#' 
+#' Estimates a covariance matrix using the NOVELIST approach with PC adjustment.
+#' This function first performs PCA on the residuals to extract K largest PCs,
+#' then applies the NOVELIST estimator on the remaindar part.
+#' 
+#' @param resid A numeric matrix of residuals.
+#' @param K Integer; number of principal components to extract.
+#' @param delta Numeric; threshold value [0, 1] applied to off-diagonal elements.
+#' @param lambda Numeric; shrinkage intensity in [0, 1]. If missing, it is computed.
+#' @param zero_mean Logical; if TRUE, residuals are assumed to have zero mean. Default is TRUE.
+#' @param ensure_PD Logical; if TRUE, ensures the covariance matrix is positive definite.
+#' 
+#' @return A list containing:
+#'   \item{lambda}{the optimal shrinkage intensity}
+#'   \item{cov}{the NOVELIST covariance matrix}
+#' 
+#' @seealso \code{\link{novelist_est}} for the original NOVELIST estimator.
 #' 
 #' @export
 novelist_pc_est <- function(
