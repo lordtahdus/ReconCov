@@ -140,6 +140,102 @@ novelist_est <- function(
 }
 
 
+#' Shrinkage Estimator for Covariance Matrix with PCA
+#' 
+#' @export
+shrinkage_pc_est <- function(
+  resid,
+  K = 1,
+  lambda = NULL,
+  zero_mean = TRUE,
+  ensure_PD = TRUE
+){
+  # Check input
+  if (any(is.na(resid))) {
+    print("NA presents in Residuals, function will omits rows with NA")
+  }
+  if (K < 1 || K > ncol(resid)) {
+    stop("K must be between 1 and the number of columns in resid.")
+  }
+
+  # Perform PCA to extract factors
+  pca <- prcomp(resid, center = !zero_mean, scale. = FALSE)
+
+  B <- pca$rotation[,1:K] # loadings
+  F <- pca$x[,1:K] # factor scores
+  
+  remainder <- resid - F %*% t(B) # residuals
+  
+  # Use shrinkage estimator on the remainder
+  shr_results <- shrinkage_est(remainder, lambda, zero_mean)
+  W_remainder <- shr_results$cov
+  
+  # Reconstruct the full covariance matrix
+  W <- B %*% diag(pca$sdev[1:K]^2) %*% t(B) + W_remainder
+  
+  return(list(
+    lambda = shr_results$lambda,
+    cov = W
+  ))
+}
+
+
+#' NOVELIST Estimator for Covariance Matrix with PCA
+#' 
+#' @export
+novelist_pc_est <- function(
+  resid,
+  K = 1,
+  delta,
+  lambda = NULL,
+  zero_mean = TRUE,
+  ensure_PD = TRUE
+){
+  # Check input
+  if (any(is.na(resid))) {
+    print("NA presents in Residuals, function will omits rows with NA")
+  }
+  if (delta < 0 || delta > 1) {
+    stop("Delta must be between 0 and 1.")
+  }
+  if (K < 1 || K > ncol(resid)) {
+    stop("K must be between 1 and the number of columns in resid.")
+  }
+  
+  # Perform PCA to extract factors
+  pca <- prcomp(resid, center = !zero_mean, scale. = FALSE)
+
+  B <- pca$rotation[,1:K] # loadings
+  F <- pca$x[,1:K] # factor scores
+  
+  remainder <- resid - F %*% t(B) # residuals
+  
+  # Use NOVELIST estimator on the remainder
+  nov_results <- novelist_est(
+    remainder, delta, lambda, zero_mean, 
+    ensure_PD = FALSE    # FALSE because we will ensure PD later
+  )
+  
+  W_remainder <- nov_results$cov
+  
+  # Reconstruct the full covariance matrix
+  W <- B %*% diag(pca$sdev[1:K]^2) %*% t(B) + W_remainder
+  
+  if (ensure_PD) {
+    if (any(eigen(W)$values <= 1e-8)) {
+      W <- as.matrix(
+        Matrix::nearPD(W)$mat
+      )
+    }
+  }
+
+  return(list(
+    lambda = nov_results$lambda,
+    cov = W
+  ))
+}
+
+
 #' Compute Covariance Matrix
 #'
 #' Computes the covariance matrix. When residuals are assumed to have
