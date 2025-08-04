@@ -1,3 +1,7 @@
+# -----------------------------
+# This script is for reproducing my codes for Shanika sanity checking.
+# -----------------------------
+
 library(Matrix)
 library(tidyr)
 library(ggplot2)
