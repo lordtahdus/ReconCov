@@ -51,3 +51,36 @@ W_shr <- shrinkage_est(
   resid
 )
 W_shr$lambda
+
+
+# ----------- Test functions -------------
+
+Ks <- c(0, 1, 5, 10)
+
+results_pc <- novelist_pc_cv(
+  y,
+  y_hat,
+  Ks,
+  S,
+  window_size = 60,
+  h = 4
+)
+results_no_pc <- novelist_cv(
+  y,
+  y_hat,
+  S,
+  window_size = 60,
+  h = 4
+)
+
+bench::mark(
+  novelist_pc_cv(y, y_hat, Ks, S, window_size = 60, h = 1),
+  novelist_cv(y, y_hat, S, window_size = 60, h = 1, message = FALSE),
+  min_iterations = 2,
+  check = FALSE
+)
+
+all.equal(
+  results_no_pc$cov,
+  results_pc$cov$K0
+)
