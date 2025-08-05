@@ -181,4 +181,175 @@ novelist_pc_cv <- function(
     ensure_PD = TRUE,
     message = TRUE
 ) {
+  T <- nrow(y)
+  p <- ncol(y)
+
+  # Preliminary checks
+  if(any(dim(y) != dim(y_hat))) {
+    stop("Dimensions of 'y' and 'y_hat' must match.")
+  }
+  if(T <= window_size || window_size <= 1 || (window_size %% 1 != 0)) {
+    stop("Window size must be integer, greater than 1 and less than nrow.")
+  }
+
+  # Calculate base residuals
+  resid <- y - y_hat
+  # Store errors, a list of matrices for each K
+  cv_errors <- lapply(
+    Ks,
+    function(i) matrix(NA, nrow = T - window_size, ncol = length(deltas))
+  )
+  names(cv_errors) <- paste0("K", Ks)
+
+  # Rolling over each possible validation step
+  # i means the "last index" of the training set is i.
+  # Then the "validation" point is i+1 to i+h.
+  for (i in window_size:(T - h)) {
+
+    # Training residuals from (i-window_size+1) to i
+    train_resid <- resid[(i - window_size + 1):i, , drop=FALSE] # drop=F keep matrix structure
+
+    # The actual data at time i+1 to i+h
+    actual_next <- y[(i+1) : (i+h), ]
+    fitted_next <- y_hat[(i+1) : (i+h), ]
+
+    # Now loop over candidate threshold delta
+    for(delta in deltas){
+
+      # Estimate a NOVELIST covariance using the train_resid
+      # for each K
+      cov_novelist_list <- lapply(
+        Ks,
+        function(K) {
+          # If K is 0, use the full residuals without PCA
+          if (K == 0) {
+            return(novelist_est(
+              resid     = train_resid,
+              delta     = delta,
+              zero_mean = zero_mean,
+              ensure_PD = ensure_PD
+            )$cov)
+          }
+          # Otherwise, apply PCA and then NOVELIST
+          novelist_pc_est(
+            resid     = train_resid,
+            K         = K,
+            delta     = delta,
+            zero_mean = zero_mean,
+            ensure_PD = ensure_PD
+          )$cov
+        }
+      )
+      
+      # TODO: Check PD
+      # if (any(eigen(cov_novelist)$values <= 1e-12)) {
+      #   stop("The covariance matrix is not positive definite, cannot reconcile. Try ensure_PD = T")
+      # }
+
+      recon_fc_list <- lapply(
+        cov_novelist_list,
+        function(cov_novelist) {
+          reconcile_mint(
+            base_forecasts = fitted_next,
+            S = S,
+            W = cov_novelist
+          )
+        }
+      )
+
+      # Compute error measure for time i+1 for each K
+      err_vals <- sapply(
+        recon_fc_list,
+        function(recon_fc) error_metric(actual_next, recon_fc)
+      )
+
+      # store
+      idx_i <- i - window_size + 1
+      idx_d <- which(deltas == delta)
+      for (k in seq_along(Ks)) {
+        idx_k <- which(Ks == Ks[k])
+        cv_errors[[idx_k]][idx_i, idx_d] <- err_vals[k]
+      }
+
+    } # end loop over deltas
+
+    # TODO: Refine Progress Printing
+    # if (message) {
+    #   if (idx_i %% 5 == 0 || idx_i == (T - window_size)) {
+    #     cat("Iteration: ", idx_i, " / ", (T - window_size), "\n")
+    #   }
+    # }
+  }
+  # cat("\n")
+
+  # Now compute average error across all rolling iterations
+  # for each K (col) and delta (row)
+  mean_errors <- sapply(
+    cv_errors,
+    function(err_mat) colMeans(err_mat, na.rm = TRUE)
+  )
+  row.names(mean_errors) <- deltas
+
+  # Find best delta for each K (col)
+  delta_stars <- apply(
+    mean_errors,
+    2,
+    function(errs) {
+      best_idx <- which.min(errs)
+      deltas[best_idx]
+    }
+  )
+
+  # Refit final NOVELIST covariance for each K, using entire resid
+  novelist_results <- lapply(
+    Ks,
+    function(K) {
+      if (K == 0) {
+        return(novelist_est(
+          resid     = resid,
+          delta     = delta_stars[which(Ks == K)],
+          zero_mean = zero_mean,
+          ensure_PD = ensure_PD
+        ))
+      }
+      novelist_pc_est(
+        resid     = resid,
+        K         = K,
+        delta     = delta_stars[which(Ks == K)],
+        zero_mean = zero_mean,
+        ensure_PD = ensure_PD
+      )
+    }
+  )
+  names(novelist_results) <- paste0("K", Ks)
+
+  final_cov_novelist <- lapply(
+    novelist_results,
+    function(res) res$cov
+  )
+  lambda_star <- sapply(
+    novelist_results,
+    function(res) res$lambda
+  )
+
+  # Ensure all covariance matrices are positive definite
+  for (cov in final_cov_novelist) {
+    if (any(eigen(cov)$values <= 1e-8)) {
+      stop("One of the final covariance matrices is not positive definite.")
+    }
+  }
+
+  # find lowest mean errors for each K (column)
+  ranking_K <- sort(
+    apply(mean_errors, 2, min)
+  )
+
+  # Return results
+  return(list(
+    delta = delta_stars,
+    lambda = lambda_star,
+    cov = final_cov_novelist,
+    errors = mean_errors,
+    ranking_K = ranking_K
+  ))
 }
