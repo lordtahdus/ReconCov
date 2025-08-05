@@ -108,13 +108,13 @@ novelist_cv <- function(
     } # end loop over deltas
 
     # TODO: Refine Progress Printing
-    if (message) {
-      if (idx_i %% 5 == 0 || idx_i == (T - window_size)) {
-        cat("Iteration: ", idx_i, " / ", (T - window_size), "\n")
-      }
-    }
+    # if (message) {
+    #   if (idx_i %% 5 == 0 || idx_i == (T - window_size)) {
+    #     cat("Iteration: ", idx_i, " / ", (T - window_size), "\n")
+    #   }
+    # }
   }
-  cat("\n")
+  # cat("\n")
 
   # Now compute average error across all rolling iterations for each delta
   mean_errors <- colMeans(cv_errors, na.rm = TRUE)
