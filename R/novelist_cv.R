@@ -53,6 +53,11 @@ novelist_cv <- function(
     stop("Window size must be integer, greater than 1 and less than nrow.")
   }
 
+  # Check possible semi-positive-definite covariance matrix
+  if (window_size < p + 1 & !ensure_PD) {
+    stop("Sample size condition per window not satisfied: window_size must be at least p + 1 to ensure a positive-definite covariance matrix. Please use ensure_PD = TRUE in order to reconcile.")
+  }
+
   # Calculate base residuals
   resid <- y - y_hat
   # Store errors
@@ -81,10 +86,10 @@ novelist_cv <- function(
         ensure_PD = ensure_PD
       )$cov
 
-      if (any(eigen(cov_novelist)$values <= 1e-12)) {
-        # stop(sort(eigen(cov_novelist)$values)[1])
-        stop("The covariance matrix is not positive definite, cannot reconcile. Try ensure_PD = T")
-      }
+      # if (any(eigen(cov_novelist)$values <= 1e-12)) {
+      #   # stop(sort(eigen(cov_novelist)$values)[1])
+      #   stop("The covariance matrix is not positive definite, cannot reconcile. Try ensure_PD = T")
+      # }
 
       recon_fc <- fitted_next
       recon_fc <- reconcile_mint(
@@ -190,6 +195,11 @@ novelist_pc_cv <- function(
   }
   if(T <= window_size || window_size <= 1 || (window_size %% 1 != 0)) {
     stop("Window size must be integer, greater than 1 and less than nrow.")
+  }
+
+  # Check possible semi-positive-definite covariance matrix
+  if (window_size < p + 1 & !ensure_PD) {
+    stop("Sample size condition per window not satisfied: window_size must be at least p + 1 to ensure a positive-definite covariance matrix. Please use ensure_PD = TRUE in order to reconcile.")
   }
 
   # Calculate base residuals
