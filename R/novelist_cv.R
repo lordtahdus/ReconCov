@@ -143,3 +143,42 @@ novelist_cv <- function(
   ))
 }
 
+
+
+#' Rolling Cross-Validation for NOVELIST with PCA Threshold Selection
+#' 
+#' This function performs a rolling window approach to select the threshold 'delta'.
+#' For each window, it applies PCA to the residuals to extract K largest factors,
+#' then applies NOVELIST covariance estimation on the remaindar part.
+#' 
+#' It can take in multiple candidate K values, and, for each K, returns the best 
+#' threshold 'delta' based on minimising some measure of forecast error on validation windows.
+#' 
+#' @param y A matrix of actual values (dim T by p),
+#' @param y_hat A matrix of fitted values (dim T by p).
+#' @param Ks A numeric vector of candidate number of factors to extract from PCA.
+#'           If there is 0, it will not apply PCA and use the full residuals.
+#'           Default is 1.
+#' @param S A matrix of reconciliation structure (dim p by b; b is number of bottom series).
+#' @param window_size The length of the rolling window n.
+#' @param deltas A numeric vector of candidate threshold values in [0,1].
+#' @param h The forecast horizon from 1 to h (default is 1).
+#' @param reconcile_forecast .....
+#' @param zero_mean Logical, whether to treat the residuals as zero mean in the covariance.
+#' @param error_metric An error measure function for given actual and reconciled forecasts.
+#' @param ensure_PD Logical, whether to ensure the covariance matrix is positive definite.
+#'
+novelist_pc_cv <- function(
+    y,
+    y_hat,
+    Ks = 1,
+    S,
+    window_size,
+    deltas = seq(0, 1, by = 0.05),
+    h = 1,
+    zero_mean = TRUE,
+    error_metric = function(actual, fc) mean((actual - fc)^2, na.rm = TRUE),
+    ensure_PD = TRUE,
+    message = TRUE
+) {
+}
