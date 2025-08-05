@@ -173,6 +173,12 @@ novelist_cv <- function(
 #' @param error_metric An error measure function for given actual and reconciled forecasts.
 #' @param ensure_PD Logical, whether to ensure the covariance matrix is positive definite.
 #'
+#' @return A list containing:
+#'  \item{delta}{vector of optimal threshold for each K}
+#'  \item{lambda}{vector of optimal shrinkage intensity for each K}
+#'  \item{cov}{list of optimal NOVELIST covariance matrices for each K}
+#'  \item{errors}{matrix of average validation error for each delta and K}
+#'  \item{ranking_K}{vector of minimum mean errors for each K}
 novelist_pc_cv <- function(
     y,
     y_hat,
