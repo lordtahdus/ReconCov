@@ -159,3 +159,11 @@ test_that("novelist_pc_est with K=1 captures rank-1 part", {
   expect_gt(vals2[1], 5*vals2[2])
   expect_true(min(vals2) > 0)
 })
+
+test_that("novelist_pc_est with delta=1 matches shrinkage_pc_est", {
+  expect_equal(
+    novelist_pc_est(resid_rank1, K=1, delta=1)$cov, 
+    shrinkage_pc_est(resid_rank1, K=1)$cov, 
+    tolerance = 1e-10
+  )
+})
