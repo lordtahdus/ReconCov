@@ -18,7 +18,7 @@
 #' @return A list containing:
 #'   \item{delta}{optimal threshold}
 #'   \item{lambda}{optimal shrinkage intensity}
-#'   \item{cov.novelist}{optimal NOVELIST covariance matrix}
+#'   \item{cov}{optimal NOVELIST covariance matrix}
 #'   \item{errors_by_delta}{vector of average validation error for each delta}
 #'
 #' @details
