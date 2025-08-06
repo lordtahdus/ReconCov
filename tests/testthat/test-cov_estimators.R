@@ -130,3 +130,40 @@ test_that("check with shrinkage estimator", {
 
   expect_equal(out$cov, out2$cov, tolerance = 1e-10)
 })
+
+
+# -------------------------------------------------
+# ---------- PC versions Estimator Tests ----------
+# -------------------------------------------------
+
+# Perfect rank-1 structure + noise
+# resid = f %*% t(b) + small noise. 
+# Factor K=1 should capture most variation.
+
+set.seed(2)
+f <- rnorm(50)
+b <- c(2, -1, 3)
+resid_rank1 <- outer(f, b) + matrix(rnorm(50*3, sd=0.01), 50, 3)
+
+test_that("shrinkage_pc_est with K=1 captures rank-1 part", {
+  out <- shrinkage_pc_est(resid_rank1, K=1)
+  vals <- eigen(out$cov)$values
+  ## First eigenvalue >> others
+  expect_gt(vals[1], 5*vals[2])
+  expect_true(min(vals) > 0)
+})
+
+test_that("novelist_pc_est with K=1 captures rank-1 part", {
+  out2 <- novelist_pc_est(resid_rank1, K=1, delta=0.3)
+  vals2 <- eigen(out2$cov)$values
+  expect_gt(vals2[1], 5*vals2[2])
+  expect_true(min(vals2) > 0)
+})
+
+test_that("novelist_pc_est with delta=1 matches shrinkage_pc_est", {
+  expect_equal(
+    novelist_pc_est(resid_rank1, K=1, delta=1)$cov, 
+    shrinkage_pc_est(resid_rank1, K=1)$cov, 
+    tolerance = 1e-10
+  )
+})
