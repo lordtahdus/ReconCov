@@ -239,21 +239,22 @@ novelist_pc_cv <- function(
         function(K) {
           # If K is 0, use the full residuals without PCA
           if (K == 0) {
-            return(novelist_est(
+            novelist_est(
               resid     = train_resid,
               delta     = delta,
               zero_mean = zero_mean,
               ensure_PD = ensure_PD
-            )$cov)
+            )$cov
+          } else {
+            # Otherwise, apply PCA and then NOVELIST
+            novelist_pc_est(
+              resid     = train_resid,
+              K         = K,
+              delta     = delta,
+              zero_mean = zero_mean,
+              ensure_PD = ensure_PD
+            )$cov
           }
-          # Otherwise, apply PCA and then NOVELIST
-          novelist_pc_est(
-            resid     = train_resid,
-            K         = K,
-            delta     = delta,
-            zero_mean = zero_mean,
-            ensure_PD = ensure_PD
-          )$cov
         }
       )
       
@@ -264,11 +265,11 @@ novelist_pc_cv <- function(
 
       recon_fc_list <- lapply(
         cov_novelist_list,
-        function(cov_novelist) {
+        function(W) {
           reconcile_mint(
             base_forecasts = fitted_next,
             S = S,
-            W = cov_novelist
+            W = W
           )
         }
       )
@@ -303,7 +304,11 @@ novelist_pc_cv <- function(
   mean_errors <- sapply(
     cv_errors,
     function(err_mat) colMeans(err_mat, na.rm = TRUE)
-  )
+  ) # return matrix, or vector if only 1 K and/or 1 delta
+  
+  if (is.vector(mean_errors)) {
+    mean_errors <- matrix(mean_errors, nrow = 1)
+  }
   row.names(mean_errors) <- deltas
 
   # Find best delta for each K (col)
@@ -360,6 +365,10 @@ novelist_pc_cv <- function(
     apply(mean_errors, 2, min)
   )
 
+  # If only one K, convert final_cov_novelist to a vector
+  if (length(Ks) == 1) {
+    final_cov_novelist <- final_cov_novelist[[1]]
+  }
   # Return results
   return(list(
     delta = delta_stars,
