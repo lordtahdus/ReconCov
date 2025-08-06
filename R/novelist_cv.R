@@ -179,6 +179,12 @@ novelist_cv <- function(
 #'  \item{cov}{list of optimal NOVELIST covariance matrices for each K}
 #'  \item{errors}{matrix of average validation error for each delta and K}
 #'  \item{ranking_K}{vector of minimum mean errors for each K}
+#' 
+#' @details
+#' Write soon
+#' 
+#' @import Matrix
+#' @export
 novelist_pc_cv <- function(
     y,
     y_hat,
