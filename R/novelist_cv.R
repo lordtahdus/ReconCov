@@ -9,7 +9,8 @@
 #' @param S A matrix of reconciliation structure (dim p by b; b is number of bottom series).
 #' @param window_size The length of the rolling window n.
 #' @param deltas A numeric vector of candidate threshold values in [0,1].
-#' @param h The forecast horizon from 1 to h (default is 1).
+#' @param h An integer vector defining the forecast horizon (default is 1). 
+#'          1-to-4-step ahead means h = 1:4; or only 4-step ahead means h = 4.
 #' @param reconcile_forecast .....
 #' @param zero_mean Logical, whether to treat the residuals as zero mean in the covariance.
 #' @param error_metric An error measure function for given actual and reconciled forecasts.
@@ -52,6 +53,9 @@ novelist_cv <- function(
   if(T <= window_size || window_size <= 1 || (window_size %% 1 != 0)) {
     stop("Window size must be integer, greater than 1 and less than nrow.")
   }
+  if (T - window_size < max(h)) {
+    stop("The length of the validation window (T - window_size) must be at least as long as the forecast horizon h.")
+  }
 
   # Check possible semi-positive-definite covariance matrix
   if (window_size < p + 1 & !ensure_PD) {
@@ -66,14 +70,14 @@ novelist_cv <- function(
   # Rolling over each possible validation step
   # i means the "last index" of the training set is i.
   # Then the "validation" point is i+1 to i+h.
-  for (i in window_size:(T - h)) {
+  for (i in window_size:(T - max(h))) {
 
     # Training residuals from (i-window_size+1) to i
     train_resid <- resid[(i - window_size + 1):i, , drop=FALSE] # drop=F keep matrix structure
 
     # The actual data at time i+1 to i+h
-    actual_next <- y[(i+1) : (i+h), ]
-    fitted_next <- y_hat[(i+1) : (i+h), ]
+    actual_next <- y[(i+h), , drop = FALSE]
+    fitted_next <- y_hat[(i+h), , drop = FALSE]
 
     # Now loop over candidate threshold delta
     for(delta in deltas){
@@ -281,7 +285,8 @@ novelist_cv <- function(
 #' @param S A matrix of reconciliation structure (dim p by b; b is number of bottom series).
 #' @param window_size The length of the rolling window n.
 #' @param deltas A numeric vector of candidate threshold values in [0,1].
-#' @param h The forecast horizon from 1 to h (default is 1).
+#' @param h An integer vector defining the forecast horizon (default is 1). 
+#'          1-to-4-step ahead means h = 1:4; or only 4-step ahead means h = 4.
 #' @param reconcile_forecast .....
 #' @param zero_mean Logical, whether to treat the residuals as zero mean in the covariance.
 #' @param error_metric An error measure function for given actual and reconciled forecasts.
@@ -322,7 +327,10 @@ novelist_pc_cv <- function(
   if(T <= window_size || window_size <= 1 || (window_size %% 1 != 0)) {
     stop("Window size must be integer, greater than 1 and less than nrow.")
   }
-
+  if (T - window_size < max(h)) {
+    stop("The length of the validation window (T - window_size) must be at least as long as the forecast horizon h.")
+  }
+  
   # Check possible semi-positive-definite covariance matrix
   if (window_size < p + 1 & !ensure_PD) {
     stop("Sample size condition per window not satisfied: window_size must be at least p + 1 to ensure a positive-definite covariance matrix. Please use ensure_PD = TRUE in order to reconcile.")
@@ -340,14 +348,14 @@ novelist_pc_cv <- function(
   # Rolling over each possible validation step
   # i means the "last index" of the training set is i.
   # Then the "validation" point is i+1 to i+h.
-  for (i in window_size:(T - h)) {
+  for (i in window_size:(T - max(h))) {
 
     # Training residuals from (i-window_size+1) to i
     train_resid <- resid[(i - window_size + 1):i, , drop=FALSE] # drop=F keep matrix structure
 
     # The actual data at time i+1 to i+h
-    actual_next <- y[(i+1) : (i+h), ]
-    fitted_next <- y_hat[(i+1) : (i+h), ]
+    actual_next <- y[(i+h), , drop = FALSE]
+    fitted_next <- y_hat[(i+h), , drop = FALSE]
 
     # Now loop over candidate threshold delta
     for(delta in deltas){
