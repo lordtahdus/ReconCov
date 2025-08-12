@@ -28,7 +28,8 @@ novelist_cv(
 
 \item{deltas}{A numeric vector of candidate threshold values in [0,1].}
 
-\item{h}{The forecast horizon from 1 to h (default is 1).}
+\item{h}{An integer vector defining the forecast horizon (default is 1). 
+1-to-4-step ahead means h = 1:4; or only 4-step ahead means h = 4.}
 
 \item{zero_mean}{Logical, whether to treat the residuals as zero mean in the covariance.}
 
