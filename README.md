@@ -1,15 +1,33 @@
-## Covariance Estimators for Forecast Reconciliation (beta)
+# Covariance Estimators for Minimum Trace Forecast Reconciliation (beta)
 *Note: R Package for Research Purpose*
 
 This package implements Min Trace reconciliation method with alternative covariance estimators.
 
-- Shrinkage - the original estimator used in Min Trace paper
-- NOVELIST - NOVEL Integration of the Sample and Thresholded Covariance estimator
-- ...
+For more details, please refer to the main thesis document [here](https://github.com/lordtahdus/Recon_Honours_Thesis/blob/master/Honours_thesis_25_VincentSu.pdf).
 
-For NOVELIST estimator, there is a cross validation algorithm to select the optimal thresholding value (no closed-form expression), which also has its C++ version to speed up the process (50% faster than R version).
+This package is also built for simulations: hierarchical data with VAR(1) coefficients with realistic innovation process.
 
-This package is also built for simulations: generating hierarchical data with customisable VAR(1) and correlation data-generating-process structures.
+## Main Functions
+
+`reconcile_mint()` : Reconcile base forecasts using Min Trace method with covariance estimate.
+
+`shrinkage_est()` : Compute shrinkage covariance estimator.
+`novelist_est()` : Compute NOVELIST covariance estimator.
+`novelist_cv()` : Cross validation for NOVELIST threshold selection.
+
+`shrinkage_pc_est()` : Compute PC-adjusted shrinkage covariance estimator.
+`novelist_pc_est()` : Compute PC-adjusted NOVELIST covariance estimator.
+`novelist_pc_cv()` : Cross validation for PC-adjusted NOVELIST threshold selection.
+
+**C++ Versions:**
+
+Below implementations speed up computation by 50%.
+
+`reconcile_mint_cpp()` : C++ version of Min Trace reconciliation.
+`novelist_est_cpp()` : C++ version of NOVELIST covariance estimator.
+`novelist_cv_cpp()` : C++ version of cross validation for NOVELIST threshold selection.
+
+All functions have detailed documentation accessible via R's help system, e.g., `?reconcile_mint` or `help(reconcile_mint)`.
 
 ## Installation
 
