@@ -9,23 +9,23 @@ This package is also built for simulations: hierarchical data with VAR(1) coeffi
 
 ## Main Functions
 
-`reconcile_mint()` : Reconcile base forecasts using Min Trace method with covariance estimate.
+- `reconcile_mint()` : Reconcile base forecasts using Min Trace method with covariance estimate.
 
-`shrinkage_est()` : Compute shrinkage covariance estimator.
-`novelist_est()` : Compute NOVELIST covariance estimator.
-`novelist_cv()` : Cross validation for NOVELIST threshold selection.
+- `shrinkage_est()` : Compute shrinkage covariance estimator.
+- `novelist_est()` : Compute NOVELIST covariance estimator.
+- `novelist_cv()` : Cross validation for NOVELIST threshold selection.
 
-`shrinkage_pc_est()` : Compute PC-adjusted shrinkage covariance estimator.
-`novelist_pc_est()` : Compute PC-adjusted NOVELIST covariance estimator.
-`novelist_pc_cv()` : Cross validation for PC-adjusted NOVELIST threshold selection.
+- `shrinkage_pc_est()` : Compute PC-adjusted shrinkage covariance estimator.
+- `novelist_pc_est()` : Compute PC-adjusted NOVELIST covariance estimator.
+- `novelist_pc_cv()` : Cross validation for PC-adjusted NOVELIST threshold selection.
 
 **C++ Versions:**
 
 Below implementations speed up computation by 50%.
 
-`reconcile_mint_cpp()` : C++ version of Min Trace reconciliation.
-`novelist_est_cpp()` : C++ version of NOVELIST covariance estimator.
-`novelist_cv_cpp()` : C++ version of cross validation for NOVELIST threshold selection.
+- `reconcile_mint_cpp()` : C++ version of Min Trace reconciliation.
+- `novelist_est_cpp()` : C++ version of NOVELIST covariance estimator.
+- `novelist_cv_cpp()` : C++ version of cross validation for NOVELIST threshold selection.
 
 All functions have detailed documentation accessible via R's help system, e.g., `?reconcile_mint` or `help(reconcile_mint)`.
 
