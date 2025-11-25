@@ -149,6 +149,7 @@ novelist_est <- function(
 #' @param resid A numeric matrix of residuals.
 #' @param K Integer; number of principal components to extract.
 #' @param lambda Numeric; shrinkage intensity in [0, 1]. If missing, it is computed.
+#' @param standardise Logical; if TRUE, residuals are standardised before PCA. Default is TRUE.
 #' @param zero_mean Logical; if TRUE, residuals are assumed to have zero mean. Default is TRUE.
 #' 
 #' @return A list containing:
@@ -157,40 +158,26 @@ novelist_est <- function(
 #' 
 #' @seealso \code{\link{shrinkage_est}} for the original shrinkage estimator.
 #' @export
+
 shrinkage_pc_est <- function(
   resid,
-  K = 1,
+  K = 1L,
   lambda = NULL,
+  standardise = TRUE,
   zero_mean = TRUE
-){
-  # Check input
-  if (any(is.na(resid))) {
-    print("NA presents in Residuals, function will omits rows with NA")
+) {
+  # Local closure: only argument is the remainder matrix
+  estimator_fun <- function(remainder) {
+    shrinkage_est(
+      resid = remainder,
+      lambda = lambda,
+      zero_mean = zero_mean
+    )
   }
-  if (K < 1 || K > ncol(resid)) {
-    stop("K must be between 1 and the number of columns in resid.")
-  }
-
-  # Perform PCA to extract factors
-  pca <- prcomp(resid, center = !zero_mean, scale. = FALSE)
-
-  B <- pca$rotation[, 1:K, drop = FALSE] # loadings
-  F <- pca$x[, 1:K, drop = FALSE] # factor scores
-  
-  remainder <- resid - F %*% t(B) # residuals
-  
-  # Use shrinkage estimator on the remainder
-  shr_results <- shrinkage_est(remainder, lambda, zero_mean)
-  W_remainder <- shr_results$cov
-  
-  # Reconstruct the full covariance matrix
-  W_pc <- B %*% diag(pca$sdev[1:K]^2, nrow = K, ncol = K) %*% t(B)
-  W <- W_pc + W_remainder
-  
-  return(list(
-    lambda = shr_results$lambda,
-    cov = W
-  ))
+  pc_estimator(
+    resid = resid, estimator_fun = estimator_fun, K = K,
+    standardise = standardise, zero_mean = zero_mean
+  )
 }
 
 
@@ -204,6 +191,7 @@ shrinkage_pc_est <- function(
 #' @param K Integer; number of principal components to extract.
 #' @param delta Numeric; threshold value [0, 1] applied to off-diagonal elements.
 #' @param lambda Numeric; shrinkage intensity in [0, 1]. If missing, it is computed.
+#' @param standardise Logical; if TRUE, residuals are standardised before PCA. Default is TRUE.
 #' @param zero_mean Logical; if TRUE, residuals are assumed to have zero mean. Default is TRUE.
 #' @param ensure_PD Logical; if TRUE, ensures the covariance matrix is positive definite.
 #' 
@@ -219,50 +207,91 @@ novelist_pc_est <- function(
   K = 1,
   delta,
   lambda = NULL,
+  standardise = TRUE,
   zero_mean = TRUE,
   ensure_PD = TRUE
+){
+  if (delta < 0 || delta > 1) {
+    stop("Delta must be between 0 and 1.")
+  }
+  # Local closure: only argument is the remainder matrix
+  estimator_fun <- function(remainder) {
+    novelist_est(
+      resid = remainder,
+      delta = delta,
+      lambda = lambda,
+      zero_mean = zero_mean,
+      ensure_PD = FALSE # FALSE because we will ensure PD later
+    )
+  }
+  results <- pc_estimator(
+    resid = resid, estimator_fun = estimator_fun, K = K,
+    standardise = standardise, zero_mean = zero_mean
+  )
+  if (ensure_PD) {
+    W <- results$cov
+    if (any(eigen(W)$values <= 1e-8)) {
+      W <- as.matrix(
+        Matrix::nearPD(W)$mat
+      )
+      results$cov <- W
+    }
+  }
+  return(results)
+}
+
+#' Helper: PC-adjusted Estimators
+#' 
+#' A helper function handles PCA decomposition and reconstruction for
+#' PC-adjusted covariance estimators.
+#' 
+#' @param estimator_fun A function that takes residuals and returns a covariance matrix.
+#' 
+#' @return A list containing:
+#'   \item{lambda}{the optimal shrinkage intensity from estimator_func}
+#'   \item{cov}{the covariance matrix with PCA adjustment}
+#' 
+pc_estimator <- function(
+  resid,
+  estimator_fun,
+  K,
+  standardise,
+  zero_mean
 ){
   # Check input
   if (any(is.na(resid))) {
     print("NA presents in Residuals, function will omits rows with NA")
   }
-  if (delta < 0 || delta > 1) {
-    stop("Delta must be between 0 and 1.")
-  }
   if (K < 1 || K > ncol(resid)) {
     stop("K must be between 1 and the number of columns in resid.")
   }
-  
-  # Perform PCA to extract factors
-  pca <- prcomp(resid, center = !zero_mean, scale. = FALSE)
 
+  # Standardise residuals if required
+  resid <- scale(resid, center = !zero_mean, scale = standardise)
+  T <- nrow(resid)
+  # Perform PCA to extract factors
+  pca <- prcomp(resid, center = FALSE, scale. = FALSE)
   B <- pca$rotation[, 1:K, drop = FALSE] # loadings
   F <- pca$x[, 1:K, drop = FALSE] # factor scores
-  
   remainder <- resid - F %*% t(B) # residuals
   
-  # Use NOVELIST estimator on the remainder
-  nov_results <- novelist_est(
-    remainder, delta, lambda, zero_mean, 
-    ensure_PD = FALSE    # FALSE because we will ensure PD later
-  )
+  # estimator on the remainder
+  est_results <- estimator_fun(remainder)
+  W_remainder <- est_results$cov
   
-  W_remainder <- nov_results$cov
-  
-  # Reconstruct the full covariance matrix
-  W_pc <- B %*% diag(pca$sdev[1:K]^2, nrow = K, ncol = K) %*% t(B)
+  # Reconstruct
+  eigenvals <- pca$sdev[1:K]^2 * (T - 1) / T  # consistent with 1/T denominator
+  W_pc <- B %*% diag(eigenvals, nrow = K) %*% t(B)
   W <- W_pc + W_remainder
-  
-  if (ensure_PD) {
-    if (any(eigen(W)$values <= 1e-8)) {
-      W <- as.matrix(
-        Matrix::nearPD(W)$mat
-      )
-    }
+
+  # Rescale back if standardised
+  if (standardise) {
+    D <- diag(attr(resid, "scaled:scale"))
+    W <- D %*% W %*% D
   }
 
   return(list(
-    lambda = nov_results$lambda,
+    lambda = est_results$lambda,
     cov = W
   ))
 }
