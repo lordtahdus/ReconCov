@@ -142,8 +142,8 @@ test_that("check with shrinkage estimator", {
 
 set.seed(2)
 f <- rnorm(50)
-b <- c(2, -1, 3)
-resid_rank1 <- outer(f, b) + matrix(rnorm(50*3, sd=0.01), 50, 3)
+b <- c(2, -1, 0.03)
+resid_rank1 <- outer(f, b) + matrix(rnorm(50*3, sd=1), 50, 3)
 
 test_that("shrinkage_pc_est with K=1 captures rank-1 part", {
   out <- shrinkage_pc_est(resid_rank1, K=1)
@@ -166,4 +166,17 @@ test_that("novelist_pc_est with delta=1 matches shrinkage_pc_est", {
     shrinkage_pc_est(resid_rank1, K=1)$cov, 
     tolerance = 1e-10
   )
+})
+
+test_that("both pc ests not shrinking the variance", {
+  out_shrink <- shrinkage_pc_est(resid_rank1, K=1)
+  out_novelist <- novelist_pc_est(resid_rank1, K=1, delta=0.5, ensure_PD = FALSE)
+
+  n <- nrow(resid_rank1)
+  var_orig <- diag(compute_cov_matrix(resid_rank1, zero_mean=TRUE))
+  var_shrink <- diag(out_shrink$cov)
+  var_novelist <- diag(out_novelist$cov)
+
+  expect_equal(var_shrink, var_orig, tolerance=1e-10)
+  expect_equal(var_novelist, var_orig, tolerance=1e-10)
 })
