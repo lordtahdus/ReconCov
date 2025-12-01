@@ -39,7 +39,7 @@ if (!requireNamespace("remotes", quietly = TRUE)) {
   install.packages("remotes")
 }
 # install ReconCov from GitHub
-remotes::install_github("your-username/ReconCov")
+remotes::install_github("lordtahdus/ReconCov")
 ```
 
 Loading the Package:
