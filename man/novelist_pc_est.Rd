@@ -9,6 +9,7 @@ novelist_pc_est(
   K = 1,
   delta,
   lambda = NULL,
+  standardise = TRUE,
   zero_mean = TRUE,
   ensure_PD = TRUE
 )
@@ -21,6 +22,8 @@ novelist_pc_est(
 \item{delta}{Numeric; threshold value [0, 1] applied to off-diagonal elements.}
 
 \item{lambda}{Numeric; shrinkage intensity in [0, 1]. If missing, it is computed.}
+
+\item{standardise}{Logical; if TRUE, residuals are standardised before PCA. Default is TRUE.}
 
 \item{zero_mean}{Logical; if TRUE, residuals are assumed to have zero mean. Default is TRUE.}
 

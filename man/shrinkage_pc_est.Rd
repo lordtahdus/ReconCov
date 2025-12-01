@@ -4,7 +4,13 @@
 \alias{shrinkage_pc_est}
 \title{Shrinkage Estimator for Covariance Matrix with PCA}
 \usage{
-shrinkage_pc_est(resid, K = 1, lambda = NULL, zero_mean = TRUE)
+shrinkage_pc_est(
+  resid,
+  K = 1L,
+  lambda = NULL,
+  standardise = TRUE,
+  zero_mean = TRUE
+)
 }
 \arguments{
 \item{resid}{A numeric matrix of residuals.}
@@ -12,6 +18,8 @@ shrinkage_pc_est(resid, K = 1, lambda = NULL, zero_mean = TRUE)
 \item{K}{Integer; number of principal components to extract.}
 
 \item{lambda}{Numeric; shrinkage intensity in [0, 1]. If missing, it is computed.}
+
+\item{standardise}{Logical; if TRUE, residuals are standardised before PCA. Default is TRUE.}
 
 \item{zero_mean}{Logical; if TRUE, residuals are assumed to have zero mean. Default is TRUE.}
 }
