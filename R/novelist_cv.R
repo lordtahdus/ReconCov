@@ -287,7 +287,7 @@ novelist_cv <- function(
 #' @param deltas A numeric vector of candidate threshold values in [0,1].
 #' @param h An integer vector defining the forecast horizon (default is 1). 
 #'          1-to-4-step ahead means h = 1:4; or only 4-step ahead means h = 4.
-#' @param reconcile_forecast .....
+#' @param standardise Logical, whether to standardise the residuals before applying PCA.
 #' @param zero_mean Logical, whether to treat the residuals as zero mean in the covariance.
 #' @param error_metric An error measure function for given actual and reconciled forecasts.
 #' @param ensure_PD Logical, whether to ensure the covariance matrix is positive definite.
@@ -312,6 +312,7 @@ novelist_pc_cv <- function(
     window_size,
     deltas = seq(0, 1, by = 0.05),
     h = 1,
+    standardise = TRUE,
     zero_mean = TRUE,
     error_metric = function(actual, fc) mean((actual - fc)^2, na.rm = TRUE),
     ensure_PD = TRUE,
@@ -376,11 +377,12 @@ novelist_pc_cv <- function(
           } else {
             # Otherwise, apply PCA and then NOVELIST
             novelist_pc_est(
-              resid     = train_resid,
-              K         = K,
-              delta     = delta,
-              zero_mean = zero_mean,
-              ensure_PD = ensure_PD
+              resid       = train_resid,
+              K           = K,
+              delta       = delta,
+              standardise = standardise,
+              zero_mean   = zero_mean,
+              ensure_PD   = ensure_PD
             )$cov
           }
         }
